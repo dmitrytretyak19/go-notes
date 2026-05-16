@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go — Блок 1 Конспект</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0b0d12;
+    --surface: #12151e;
+    --surface2: #171b26;
+    --border: #1d2235;
+    --accent: #00e5b0;
+    --accent2: #7c6af7;
+    --accent3: #ff6b6b;
+    --accent4: #ffd166;
+    --text: #dde4f0;
+    --muted: #5a6680;
+    --code-bg: #090b0f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+  }
+
+  /* STICKY NAV */
+  .nav {
+    position: relative;
+    z-index: 100;
+    background: rgba(11,13,18,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0.7rem 1.2rem;
+  }
+
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .nav-logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.75rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+    margin-right: 0.5rem;
+  }
+
+  .nav-btn {
+    padding: 0.3rem 0.7rem;
+    border-radius: 7px;
+    font-size: 0.62rem;
+    font-family: 'Unbounded', sans-serif;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btn.active { background: rgba(0,229,176,0.1); border-color: var(--accent); color: var(--accent); }
+
+  .nav-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .ctrl-btn {
+    padding: 0.3rem 0.8rem;
+    border-radius: 7px;
+    font-size: 0.62rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { color: var(--text); border-color: var(--text); }
+
+  /* MAIN */
+  .main { padding: 2rem 1.2rem 4rem; }
+
+  /* HEADER */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .header-label {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.58rem;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.7rem;
+  }
+
+  .header h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 1.8rem;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+  }
+
+  .header h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .header p { color: var(--muted); font-size: 0.72rem; margin-bottom: 1.5rem; }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    justify-content: center;
+  }
+
+  .pill {
+    padding: 0.22rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.6rem;
+    font-family: 'Unbounded', sans-serif;
+  }
+  .pill-done { background: rgba(0,229,176,0.1); color: var(--accent); border: 1px solid rgba(0,229,176,0.2); }
+  .pill-next { background: rgba(124,106,247,0.1); color: var(--accent2); border: 1px solid rgba(124,106,247,0.2); }
+  .pill-todo { background: rgba(255,255,255,0.03); color: var(--muted); border: 1px solid var(--border); }
+
+  /* SECTION */
+  .section {
+    max-width: 1100px;
+    margin: 0 auto 1rem;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .section:hover { border-color: rgba(0,229,176,0.25); }
+
+  .section-header {
+    padding: 1rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    cursor: pointer;
+    background: var(--surface);
+    user-select: none;
+    transition: background 0.2s;
+  }
+
+  .section-header:hover { background: var(--surface2); }
+
+  .section-icon { font-size: 1.1rem; line-height: 1; }
+
+  .section-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.58rem;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 0.2rem 0.5rem;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .section-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.8rem;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .section-badge {
+    font-size: 0.6rem;
+    color: var(--muted);
+    background: rgba(255,255,255,0.04);
+    padding: 0.2rem 0.5rem;
+    border-radius: 5px;
+  }
+
+  .chevron {
+    color: var(--muted);
+    font-size: 0.75rem;
+    transition: transform 0.25s;
+  }
+
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+
+  .section-body {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.4rem;
+    background: rgba(255,255,255,0.01);
+  }
+
+  .section.collapsed .section-body { display: none; }
+
+  /* GRID */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .card-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.55rem;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .card-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 0.7rem;
+    color: var(--accent);
+  }
+
+  .card-body { padding: 0.9rem 1rem; }
+
+  .desc {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-bottom: 0.7rem;
+    line-height: 1.7;
+  }
+
+  /* CODE */
+  .code-wrap { position: relative; margin-bottom: 0.7rem; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.8rem 0.9rem;
+    font-size: 0.68rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    font-size: 0.6rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(0,229,176,0.08); }
+  .copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+
+  /* SYNTAX */
+  .kw { color: #8b7cf8; }
+  .str { color: #7ec897; }
+  .num { color: #ffd166; }
+  .fn { color: #00e5b0; }
+  .cm { color: #2d3a52; font-style: italic; }
+  .tp { color: #ff9a5c; }
+
+  /* RULES */
+  .rule {
+    background: rgba(0,229,176,0.05);
+    border-left: 3px solid var(--accent);
+    padding: 0.55rem 0.8rem;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.68rem;
+    color: var(--text);
+    margin-top: 0.5rem;
+    line-height: 1.75;
+  }
+  .rule.warn { background: rgba(255,107,107,0.05); border-left-color: var(--accent3); }
+  .rule.tip { background: rgba(255,209,102,0.05); border-left-color: var(--accent4); }
+  .rule.purple { background: rgba(124,106,247,0.05); border-left-color: var(--accent2); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; margin-top: 0.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.68rem; }
+  th { background: rgba(255,255,255,0.04); padding: 0.45rem 0.7rem; text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 400; }
+  td { padding: 0.4rem 0.7rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  td:first-child { color: var(--accent); }
+
+  code { background: rgba(0,229,176,0.08); color: var(--accent); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.66rem; }
+
+  .tag { display: inline-block; padding: 0.12rem 0.4rem; border-radius: 4px; font-size: 0.6rem; margin: 0.1rem; }
+  .tag-g { background: rgba(0,229,176,0.1); color: var(--accent); }
+  .tag-p { background: rgba(124,106,247,0.1); color: var(--accent2); }
+  .tag-r { background: rgba(255,107,107,0.1); color: var(--accent3); }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--accent);
+    color: #000;
+    font-size: 0.7rem;
+    padding: 0.55rem 1.2rem;
+    border-radius: 20px;
+    font-family: 'Unbounded', sans-serif;
+    transition: transform 0.3s;
+    z-index: 200;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    margin-top: 2rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 2;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .footer strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- STICKY NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-logo">Go Конспект</span>
+    <button class="nav-btn active" onclick="navToggle('s0', this)">📌 Основа</button>
+    <button class="nav-btn" onclick="navToggle('s1', this)">📦 Переменные</button>
+    <button class="nav-btn" onclick="navToggle('s2', this)">🚦 Условия</button>
+    <button class="nav-btn" onclick="navToggle('s3', this)">🔄 Циклы</button>
+    <button class="nav-btn" onclick="navToggle('s4', this)">🔧 Функции</button>
+    <button class="nav-btn" onclick="navToggle('s5', this)">📋 Слайсы</button>
+    <button class="nav-btn" onclick="navToggle('s6', this)">🗺️ Map</button>
+    <button class="nav-btn" onclick="navToggle('s7', this)">🏗️ Структуры</button>
+    <button class="nav-btn" onclick="navToggle('s8', this)">🔌 Интерфейсы</button>
+    <button class="nav-btn" onclick="navToggle('s9', this)">❌ Ошибки</button>
+    <button class="nav-btn" onclick="navToggle('s10', this)">🌿 Git</button>
+    <button class="nav-btn" onclick="navToggle('s11', this)">🐙 GitHub</button>
+    <div class="nav-controls">
+      <button class="ctrl-btn" onclick="expandAll()">развернуть все</button>
+      <button class="ctrl-btn" onclick="collapseAll()">свернуть все</button>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-label">конспект · все темы</div>
+    <h1>Go <span>с нуля</span></h1>
+    <p>Все пройденные темы с примерами кода — Дмитрий</p>
+    <div class="pills">
+      <span class="pill pill-done" onclick="filterBlock('all')" style="cursor:pointer">🗂️ Все блоки</span>
+      <span class="pill pill-done" onclick="filterBlock('1')" style="cursor:pointer">✅ Блок 1 — Основы Go</span>
+      <span class="pill pill-next" onclick="filterBlock('2')" style="cursor:pointer">⏳ Блок 2 — Инструменты</span>
+      <span class="pill pill-todo">⬜ Блок 3 — HTTP и API</span>
+      <span class="pill pill-todo">⬜ Блок 4 — Базы данных</span>
+      <span class="pill pill-todo">⬜ Блок 5 — Продвинутый Go</span>
+      <span class="pill pill-todo">⬜ Блок 6 — Проект</span>
+    </div>
+  </div>
+
+  <!-- SECTION 0: ОСНОВА -->
+  <div class="section" id="s0" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">📌</span>
+      <span class="section-num">ОСНОВА</span>
+      <span class="section-title">Шаблон любой программы</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ШАБЛОН</span>
+            <span class="card-title">Структура файла</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Каждый Go файл начинается одинаково.</p>
+            <div class="code-wrap">
+              <pre><span class="kw">package</span> main
+
+<span class="kw">import</span> <span class="str">"fmt"</span>
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    fmt.<span class="fn">Println</span>(<span class="str">"Привет, Go!"</span>)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              <code>package main</code> — точка входа<br>
+              <code>import "fmt"</code> — подключаем вывод<br>
+              <code>func main()</code> — Go запускает отсюда
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ТЕРМИНАЛ</span>
+            <span class="card-title">Запуск программы</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm"># Перейти в папку с кодом</span>
+cd ~/Desktop/claude
+
+<span class="cm"># Запустить программу</span>
+go run main.go
+
+<span class="cm"># Посмотреть файлы в папке</span>
+ls</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">Перед запуском убедись что ты в папке с файлом!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: ПЕРЕМЕННЫЕ -->
+  <div class="section" id="s1" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">📦</span>
+      <span class="section-num">УР. 2</span>
+      <span class="section-title">Переменные и типы данных</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ПЕРЕМЕННЫЕ</span>
+            <span class="card-title">var и :=</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Переменная — коробка с именем. Внутри хранится значение.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// Длинный способ</span>
+<span class="kw">var</span> имя <span class="tp">string</span> = <span class="str">"Дмитрий"</span>
+<span class="kw">var</span> возраст <span class="tp">int</span> = <span class="num">25</span>
+<span class="kw">var</span> активен <span class="tp">bool</span> = <span class="kw">true</span>
+
+<span class="cm">// Короткий способ — используй чаще!</span>
+имя := <span class="str">"Дмитрий"</span>
+возраст := <span class="num">25</span>
+активен := <span class="kw">true</span>
+
+<span class="cm">// var без значения — заполним позже</span>
+<span class="kw">var</span> результат <span class="tp">int</span>
+результат = <span class="num">42</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule warn">"25" — текст, математика не работает!<br>25 — число. Разница важна!</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ТИПЫ</span>
+            <span class="card-title">string · int · bool</span>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <tr><th>Тип</th><th>Что хранит</th><th>Пример</th></tr>
+                <tr><td>string</td><td>текст</td><td>"Дмитрий"</td></tr>
+                <tr><td>int</td><td>целое число</td><td>25</td></tr>
+                <tr><td>bool</td><td>правда/ложь</td><td>true / false</td></tr>
+              </table>
+            </div>
+            <div class="rule" style="margin-top:0.8rem">
+              <span class="tag tag-g">string</span> всегда в кавычках " "<br>
+              <span class="tag tag-p">int</span> без кавычек<br>
+              <span class="tag tag-r">bool</span> только true или false
+            </div>
+            <div class="code-wrap" style="margin-top:0.8rem">
+              <pre><span class="cm">// Print vs Println</span>
+fmt.<span class="fn">Print</span>(<span class="str">"Привет"</span>)    <span class="cm">// без переноса</span>
+fmt.<span class="fn">Println</span>(<span class="str">"Привет"</span>) <span class="cm">// с переносом строки</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: УСЛОВИЯ -->
+  <div class="section" id="s2" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🚦</span>
+      <span class="section-num">УР. 3</span>
+      <span class="section-title">Условия</span>
+      <span class="section-badge">1 карточка</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">УСЛОВИЯ</span>
+            <span class="card-title">if / else if / else</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Проверяет условия сверху вниз — останавливается на первом верном.</p>
+            <div class="code-wrap">
+              <pre><span class="kw">if</span> возраст >= <span class="num">18</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Взрослый"</span>)
+} <span class="kw">else if</span> возраст >= <span class="num">12</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Подросток"</span>)
+} <span class="kw">else</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Ребёнок"</span>)
+}
+
+<span class="cm">// Пример с паролем</span>
+<span class="kw">if</span> пароль != <span class="str">"1234"</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Неверный пароль!"</span>)
+} <span class="kw">else</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Добро пожаловать!"</span>)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Знак</th><th>Значение</th></tr>
+                <tr><td>==</td><td>равно</td></tr>
+                <tr><td>!=</td><td>не равно (! = НЕ)</td></tr>
+                <tr><td>&gt;</td><td>больше</td></tr>
+                <tr><td>&lt;</td><td>меньше</td></tr>
+                <tr><td>&gt;=</td><td>больше или равно</td></tr>
+                <tr><td>&lt;=</td><td>меньше или равно</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: ЦИКЛЫ -->
+  <div class="section" id="s3" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🔄</span>
+      <span class="section-num">УР. 4</span>
+      <span class="section-title">Циклы</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ЦИКЛ</span>
+            <span class="card-title">for — три части</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">В Go один вид цикла — for. Повторяет код нужное количество раз.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// Обычный цикл от 1 до 5</span>
+<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">5</span>; i++ {
+    fmt.<span class="fn">Println</span>(i)
+}
+
+<span class="cm">// Шаг по 5: 5, 10, 15, 20, 25</span>
+<span class="kw">for</span> i := <span class="num">5</span>; i <= <span class="num">25</span>; i += <span class="num">5</span> {
+    fmt.<span class="fn">Println</span>(i)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">
+              <code>i := 1</code> — откуда начать<br>
+              <code>i &lt;= 5</code> — когда остановиться<br>
+              <code>i++</code> — прибавить 1 каждый шаг
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">УПРАВЛЕНИЕ</span>
+            <span class="card-title">break / continue / %</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// break — остановить цикл полностью</span>
+<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">10</span>; i++ {
+    <span class="kw">if</span> i == <span class="num">5</span> { <span class="kw">break</span> }
+    fmt.<span class="fn">Println</span>(i) <span class="cm">// 1 2 3 4</span>
+}
+
+<span class="cm">// continue — пропустить шаг</span>
+<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">5</span>; i++ {
+    <span class="kw">if</span> i == <span class="num">3</span> { <span class="kw">continue</span> }
+    fmt.<span class="fn">Println</span>(i) <span class="cm">// 1 2 4 5</span>
+}
+
+<span class="cm">// % остаток — только чётные числа</span>
+<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">10</span>; i++ {
+    <span class="kw">if</span> i%<span class="num">2</span> != <span class="num">0</span> { <span class="kw">continue</span> }
+    fmt.<span class="fn">Println</span>(i) <span class="cm">// 2 4 6 8 10</span>
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule warn">break срабатывает ДО вывода! i==5 с break → выведет 1 2 3 4</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: ФУНКЦИИ -->
+  <div class="section" id="s4" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🔧</span>
+      <span class="section-num">УР. 5</span>
+      <span class="section-title">Функции</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ФУНКЦИИ</span>
+            <span class="card-title">Создание и вызов</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Пишешь один раз — вызываешь сколько угодно.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// Без возврата</span>
+<span class="kw">func</span> <span class="fn">приветствие</span>(имя <span class="tp">string</span>) {
+    fmt.<span class="fn">Println</span>(<span class="str">"Привет,"</span>, имя)
+}
+
+<span class="cm">// Два параметра</span>
+<span class="kw">func</span> <span class="fn">инфо</span>(имя <span class="tp">string</span>, возраст <span class="tp">int</span>) {
+    fmt.<span class="fn">Println</span>(имя, <span class="str">"возраст:"</span>, возраст)
+}
+
+<span class="cm">// Вызов</span>
+<span class="fn">приветствие</span>(<span class="str">"Дмитрий"</span>)
+<span class="fn">инфо</span>(<span class="str">"Алибек"</span>, <span class="num">30</span>)</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">RETURN</span>
+            <span class="card-title">Возврат значения</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// Возвращает число</span>
+<span class="kw">func</span> <span class="fn">сложить</span>(а <span class="tp">int</span>, б <span class="tp">int</span>) <span class="tp">int</span> {
+    <span class="kw">return</span> а + б
+}
+
+<span class="cm">// Возвращает bool</span>
+<span class="kw">func</span> <span class="fn">isAdult</span>(возраст <span class="tp">int</span>) <span class="tp">bool</span> {
+    <span class="kw">if</span> возраст >= <span class="num">18</span> {
+        <span class="kw">return</span> <span class="kw">true</span>
+    }
+    <span class="kw">return</span> <span class="kw">false</span>
+}
+
+<span class="cm">// Использование</span>
+результат := <span class="fn">сложить</span>(<span class="num">5</span>, <span class="num">3</span>)
+fmt.<span class="fn">Println</span>(результат) <span class="cm">// 8</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              return числа → пиши <code>int</code><br>
+              return текста → пиши <code>string</code><br>
+              return true/false → пиши <code>bool</code><br>
+              нет return → нет типа
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: СЛАЙСЫ -->
+  <div class="section" id="s5" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">📋</span>
+      <span class="section-num">УР. 6</span>
+      <span class="section-title">Массивы и слайсы</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">СЛАЙС</span>
+            <span class="card-title">Создание и операции</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// Массив — фиксированный [5]</span>
+оценки := [<span class="num">5</span>]<span class="tp">int</span>{<span class="num">5</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">3</span>, <span class="num">4</span>}
+
+<span class="cm">// Слайс — гибкий []</span>
+оценки := []<span class="tp">int</span>{<span class="num">5</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">3</span>, <span class="num">4</span>}
+
+<span class="cm">// Индексы с НУЛЯ!</span>
+fmt.<span class="fn">Println</span>(оценки[<span class="num">0</span>]) <span class="cm">// 5 — первый</span>
+fmt.<span class="fn">Println</span>(оценки[<span class="num">2</span>]) <span class="cm">// 5 — третий</span>
+
+<span class="cm">// Добавить элемент</span>
+оценки = <span class="fn">append</span>(оценки, <span class="num">5</span>)
+
+<span class="cm">// Длина</span>
+fmt.<span class="fn">Println</span>(<span class="fn">len</span>(оценки))</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule warn">Индексы с нуля! [0]=первый, [1]=второй</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ПЕРЕБОР</span>
+            <span class="card-title">for range</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// С индексом</span>
+<span class="kw">for</span> i, значение := <span class="kw">range</span> оценки {
+    fmt.<span class="fn">Println</span>(i, значение)
+}
+
+<span class="cm">// Без индекса — пиши _</span>
+<span class="kw">for</span> _, значение := <span class="kw">range</span> оценки {
+    fmt.<span class="fn">Println</span>(значение)
+}
+
+<span class="cm">// Пример: приветствие списка</span>
+имена := []<span class="tp">string</span>{<span class="str">"Дмитрий"</span>, <span class="str">"Алибек"</span>}
+<span class="kw">for</span> _, имя := <span class="kw">range</span> имена {
+    fmt.<span class="fn">Println</span>(<span class="str">"Привет,"</span>, имя)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule purple">_ = "этот параметр не нужен, игнорируй"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 6: MAP -->
+  <div class="section" id="s6" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🗺️</span>
+      <span class="section-num">УР. 7</span>
+      <span class="section-title">Map</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">MAP</span>
+            <span class="card-title">Создание и операции</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Хранит данные по ключу. Слайс ищет по номеру — Map по имени.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// map[тип_ключа]тип_значения</span>
+телефоны := <span class="kw">map</span>[<span class="tp">string</span>]<span class="tp">string</span>{
+    <span class="str">"Дмитрий"</span>: <span class="str">"375291234567"</span>,
+    <span class="str">"Алибек"</span>:  <span class="str">"375291234568"</span>,
+}
+
+<span class="cm">// Получить значение</span>
+fmt.<span class="fn">Println</span>(телефоны[<span class="str">"Дмитрий"</span>])
+
+<span class="cm">// Добавить / изменить</span>
+телефоны[<span class="str">"Иван"</span>] = <span class="str">"375255290996"</span>
+
+<span class="cm">// Удалить</span>
+<span class="fn">delete</span>(телефоны, <span class="str">"Саша"</span>)
+
+<span class="cm">// Перебрать все</span>
+<span class="kw">for</span> ключ, значение := <span class="kw">range</span> телефоны {
+    fmt.<span class="fn">Println</span>(ключ, <span class="str">"->"</span>, значение)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">MAP</span>
+            <span class="card-title">Проверка и сравнение</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// Проверить есть ли ключ</span>
+номер, есть := телефоны[<span class="str">"Дмитрий"</span>]
+<span class="kw">if</span> есть {
+    fmt.<span class="fn">Println</span>(<span class="str">"Найден:"</span>, номер)
+} <span class="kw">else</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Не найден"</span>)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <tr><th></th><th>Слайс</th><th>Map</th></tr>
+                <tr><td>Поиск</td><td>по [0] [1]</td><td>по ["имя"]</td></tr>
+                <tr><td>Добавить</td><td>append()</td><td>map["к"] = "з"</td></tr>
+                <tr><td>Удалить</td><td>—</td><td>delete()</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 7: СТРУКТУРЫ -->
+  <div class="section" id="s7" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🏗️</span>
+      <span class="section-num">УР. 8</span>
+      <span class="section-title">Структуры</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">STRUCT</span>
+            <span class="card-title">Создание и использование</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Коробка с несколькими полями разных типов. Как анкета.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// Тип структуры — с Большой буквы!</span>
+<span class="kw">type</span> <span class="tp">User</span> <span class="kw">struct</span> {
+    Name <span class="tp">string</span>
+    Age  <span class="tp">int</span>
+    City <span class="tp">string</span>
+}
+
+<span class="cm">// Переменная — с маленькой</span>
+user := <span class="tp">User</span>{
+    Name: <span class="str">"Дмитрий"</span>,
+    Age:  <span class="num">25</span>,
+    City: <span class="str">"Гродно"</span>,
+}
+
+<span class="cm">// Получить поле — через точку</span>
+fmt.<span class="fn">Println</span>(user.Name)
+
+<span class="cm">// Изменить поле</span>
+user.Age = <span class="num">26</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">
+              Тип/поля → с Большой (User, Name)<br>
+              Переменные → с маленькой (user)<br>
+              Доступ → через точку user.Name
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">СЛАЙС</span>
+            <span class="card-title">Слайс структур</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="kw">type</span> <span class="tp">Product</span> <span class="kw">struct</span> {
+    Name  <span class="tp">string</span>
+    Price <span class="tp">int</span>
+}
+
+products := []<span class="tp">Product</span>{
+    {Name: <span class="str">"Телефон"</span>, Price: <span class="num">500</span>},
+    {Name: <span class="str">"Ноутбук"</span>, Price: <span class="num">1200</span>},
+    {Name: <span class="str">"Наушники"</span>, Price: <span class="num">150</span>},
+}
+
+<span class="kw">for</span> _, p := <span class="kw">range</span> products {
+    fmt.<span class="fn">Println</span>(p.Name, <span class="str">"->"</span>, p.Price)
+}</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 8: ИНТЕРФЕЙСЫ -->
+  <div class="section" id="s8" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🔌</span>
+      <span class="section-num">УР. 9</span>
+      <span class="section-title">Интерфейсы</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">INTERFACE</span>
+            <span class="card-title">Контракт</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Позволяет одной функции работать с разными типами.</p>
+            <div class="code-wrap">
+              <pre><span class="cm">// Интерфейс — контракт</span>
+<span class="kw">type</span> <span class="tp">Animal</span> <span class="kw">interface</span> {
+    <span class="fn">Sound</span>() <span class="tp">string</span>
+}
+
+<span class="cm">// Структуры</span>
+<span class="kw">type</span> <span class="tp">Dog</span> <span class="kw">struct</span> { Name <span class="tp">string</span> }
+<span class="kw">type</span> <span class="tp">Cat</span> <span class="kw">struct</span> { Name <span class="tp">string</span> }
+
+<span class="cm">// Методы</span>
+<span class="kw">func</span> (d <span class="tp">Dog</span>) <span class="fn">Sound</span>() <span class="tp">string</span> { <span class="kw">return</span> <span class="str">"Гав!"</span> }
+<span class="kw">func</span> (c <span class="tp">Cat</span>) <span class="fn">Sound</span>() <span class="tp">string</span> { <span class="kw">return</span> <span class="str">"Мяу!"</span> }
+
+<span class="cm">// Одна функция для всех Animal</span>
+<span class="kw">func</span> <span class="fn">makeSound</span>(a <span class="tp">Animal</span>) {
+    fmt.<span class="fn">Println</span>(a.<span class="fn">Sound</span>())
+}
+
+<span class="fn">makeSound</span>(<span class="tp">Dog</span>{Name: <span class="str">"Рекс"</span>})
+<span class="fn">makeSound</span>(<span class="tp">Cat</span>{Name: <span class="str">"Мурзик"</span>})</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule purple">
+              Dog умеет Sound → Dog является Animal ✅<br>
+              Cat умеет Sound → Cat является Animal ✅
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">МЕТОД</span>
+            <span class="card-title">Функция с владельцем</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm">// Обычная функция</span>
+<span class="kw">func</span> <span class="fn">Sound</span>() <span class="tp">string</span> { ... }
+
+<span class="cm">// Метод — привязан к структуре</span>
+<span class="kw">func</span> (d <span class="tp">Dog</span>) <span class="fn">Sound</span>() <span class="tp">string</span> {
+    <span class="kw">return</span> <span class="str">"Гав! Я "</span> + d.Name
+}
+
+<span class="cm">// d — короткое имя для Dog
+// По традиции — первая буква типа:
+// Dog → d, Cat → c, User → u</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">
+              (d Dog) → функция принадлежит Dog<br>
+              d.Name → обращаемся к полю через d
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 9: ОШИБКИ -->
+  <div class="section" id="s9" data-block="1">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">❌</span>
+      <span class="section-num">УР. 10</span>
+      <span class="section-title">Ошибки</span>
+      <span class="section-badge">1 карточка</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">ERROR</span>
+            <span class="card-title">Обработка ошибок</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Функции возвращают два значения — результат и ошибку. Всегда проверяй!</p>
+            <div class="code-wrap">
+              <pre><span class="kw">import</span> (
+    <span class="str">"errors"</span>
+    <span class="str">"fmt"</span>
+)
+
+<span class="cm">// Функция с двумя возвратами</span>
+<span class="kw">func</span> <span class="fn">разделить</span>(а <span class="tp">int</span>, б <span class="tp">int</span>) (<span class="tp">int</span>, <span class="tp">error</span>) {
+    <span class="kw">if</span> б == <span class="num">0</span> {
+        <span class="kw">return</span> <span class="num">0</span>, errors.<span class="fn">New</span>(<span class="str">"нельзя на ноль!"</span>)
+    }
+    <span class="kw">return</span> а / б, <span class="kw">nil</span>
+}
+
+<span class="cm">// Всегда проверяй ошибку!</span>
+результат, ошибка := <span class="fn">разделить</span>(<span class="num">10</span>, <span class="num">2</span>)
+<span class="kw">if</span> ошибка != <span class="kw">nil</span> {
+    fmt.<span class="fn">Println</span>(<span class="str">"Ошибка:"</span>, ошибка)
+    <span class="kw">return</span>
+}
+fmt.<span class="fn">Println</span>(результат) <span class="cm">// 5</span></pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              <code>nil</code> — "ничего", ошибки нет ✅<br>
+              <code>ошибка != nil</code> — ошибка есть ❌<br>
+              <code>errors.New("текст")</code> — создать ошибку
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 10: GIT -->
+  <div class="section" id="s10" data-block="2">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🌿</span>
+      <span class="section-num">БЛ. 2 · УР. 1</span>
+      <span class="section-title">Git — система контроля версий</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">GIT</span>
+            <span class="card-title">Основные команды</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Git — машина времени для кода. Сохраняет историю всех изменений.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># Проверить версию Git</span>
+git --version
+
+<span class="cm"># Настроить имя и email (один раз)</span>
+git config --global user.name "Dmitry"
+git config --global user.email "email@gmail.com"
+
+<span class="cm"># Создать репозиторий в папке</span>
+git init
+
+<span class="cm"># Посмотреть что изменилось</span>
+git status
+
+<span class="cm"># Добавить все файлы</span>
+git add .
+
+<span class="cm"># Сохранить с описанием</span>
+git commit -m "описание что изменил"
+
+<span class="cm"># Посмотреть историю коммитов</span>
+git log --oneline
+
+<span class="cm"># Вернуться к старой версии</span>
+git checkout ID_коммита
+
+<span class="cm"># Вернуться к последней версии</span>
+git checkout main</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">GIT</span>
+            <span class="card-title">Как работает коммит</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Три шага которые повторяешь каждый раз когда делаешь изменения.</p>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Команда</th><th>Что делает</th></tr>
+                <tr><td>git init</td><td>Создать репозиторий</td></tr>
+                <tr><td>git status</td><td>Что изменилось</td></tr>
+                <tr><td>git add .</td><td>Добавить все файлы</td></tr>
+                <tr><td>git commit -m ""</td><td>Сохранить версию</td></tr>
+                <tr><td>git log --oneline</td><td>История коммитов</td></tr>
+                <tr><td>git checkout ID</td><td>Вернуться к версии</td></tr>
+                <tr><td>git checkout main</td><td>Вернуться к последней</td></tr>
+              </table>
+            </div>
+            <div class="rule tip" style="margin-top:0.8rem">
+              Пиши понятные описания! "исправил ошибку авторизации" — хорошо. "изменил код" — плохо.
+            </div>
+            <div class="rule warn" style="margin-top:0.5rem">
+              Папка .git — не удаляй! В ней хранится вся история.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 11: GITHUB -->
+  <div class="section" id="s11" data-block="2">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🐙</span>
+      <span class="section-num">БЛ. 2 · УР. 2</span>
+      <span class="section-title">GitHub — код в интернете</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">GITHUB</span>
+            <span class="card-title">Подключение и загрузка</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># 1. Подключить локальный код к GitHub</span>
+git remote add origin https://github.com/username/repo.git
+
+<span class="cm"># 2. Загрузить код первый раз</span>
+git push -u origin main
+
+<span class="cm"># 3. Каждый раз после изменений</span>
+git add .
+git commit -m "что изменил"
+git push</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              <code>remote add origin</code> — говорим куда загружать<br>
+              <code>git push</code> — загружаем код на GitHub<br>
+              <code>-u origin main</code> — только при первом push
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">GITHUB</span>
+            <span class="card-title">Git vs GitHub</span>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <tr><th></th><th>Git</th><th>GitHub</th></tr>
+                <tr><td>Что это</td><td>программа на компьютере</td><td>сайт в интернете</td></tr>
+                <tr><td>Где хранит</td><td>локально на Mac</td><td>в облаке</td></tr>
+                <tr><td>Зачем</td><td>история версий</td><td>резервная копия + портфолио</td></tr>
+              </table>
+            </div>
+            <div class="rule purple" style="margin-top:0.8rem">
+              Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼
+            </div>
+            <div class="rule tip" style="margin-top:0.5rem">
+              Твой репозиторий: github.com/dmitrytretyak19/go-learning
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>Блок 1 завершён ✅ · Блок 2 в процессе ⏳</strong><br>
+    Пройдено: Git · GitHub · Следующий: Linux и терминал
+  </div>
+
+</div>
+
+<div class="toast" id="toast">Скопировано!</div>
+
+<script>
+  function toggleSection(header) {
+    header.parentElement.classList.toggle('collapsed');
+    syncNavButtons();
+  }
+
+  function navToggle(id, btn) {
+    const section = document.getElementById(id);
+    if (!section) return;
+    section.classList.toggle('collapsed');
+    syncNavButtons();
+  }
+
+  function expandAll() {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('collapsed'));
+    syncNavButtons();
+  }
+
+  function collapseAll() {
+    document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
+    syncNavButtons();
+  }
+
+  function syncNavButtons() {
+    const sections = document.querySelectorAll('.section');
+    const buttons = document.querySelectorAll('.nav-btn');
+    sections.forEach((section, index) => {
+      if (!buttons[index]) return;
+      buttons[index].classList.toggle('active', !section.classList.contains('collapsed'));
+    });
+  }
+
+  // Фильтрация по блоку через пилюли
+  function filterBlock(block) {
+    const sections = document.querySelectorAll('.section');
+    const pills = document.querySelectorAll('.pill');
+
+    pills.forEach(p => p.style.fontWeight = 'normal');
+
+    if (block === 'all') {
+      sections.forEach(s => {
+        s.style.display = 'block';
+        s.classList.remove('collapsed');
+      });
+    } else {
+      sections.forEach(s => {
+        if (s.dataset.block === block) {
+          s.style.display = 'block';
+          s.classList.remove('collapsed');
+        } else {
+          s.style.display = 'none';
+        }
+      });
+    }
+    syncNavButtons();
+  }
+
+  function copyCode(btn) {
+    const pre = btn.previousElementSibling;
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      btn.textContent = '✓ скопировано';
+      btn.classList.add('copied');
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => {
+        btn.textContent = 'копировать';
+        btn.classList.remove('copied');
+        toast.classList.remove('show');
+      }, 1800);
+    });
+  }
+
+  syncNavButtons();
+</script>
+
+</body>
+</html>
