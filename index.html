@@ -382,6 +382,7 @@
     <button class="nav-btn" onclick="navToggle('s11', this)">🐙 GitHub</button>
     <button class="nav-btn" onclick="navToggle('s12', this)">🐧 Linux</button>
     <button class="nav-btn" onclick="navToggle('s13', this)">🐳 Docker</button>
+    <button class="nav-btn" onclick="navToggle('s14', this)">🌐 HTTP</button>
     <div class="nav-controls">
       <button class="ctrl-btn" onclick="expandAll()">развернуть все</button>
       <button class="ctrl-btn" onclick="collapseAll()">свернуть все</button>
@@ -1427,9 +1428,92 @@ docker rmi my-go-app</pre>
     </div>
   </div>
  
+  <!-- SECTION 14: HTTP -->
+  <div class="section" id="s14" data-block="3">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🌐</span>
+      <span class="section-num">БЛ. 3 · УР. 1</span>
+      <span class="section-title">Как работает HTTP</span>
+      <span class="section-badge">3 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">HTTP</span>
+            <span class="card-title">Запрос и ответ</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">HTTP — протокол общения браузера с сервером. Каждый раз когда открываешь сайт — браузер отправляет запрос, сервер отвечает.</p>
+            <div class="rule">
+              1. Браузер отправляет <strong>запрос (Request)</strong> на сервер<br>
+              2. Сервер обрабатывает запрос<br>
+              3. Сервер отправляет <strong>ответ (Response)</strong><br>
+              4. Браузер показывает результат
+            </div>
+            <div class="rule tip" style="margin-top:0.5rem">
+              URL = протокол + домен + путь<br>
+              <code>https://github.com/dmitrytretyak19</code><br>
+              https — протокол, github.com — домен, /dmitrytretyak19 — путь
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">МЕТОДЫ</span>
+            <span class="card-title">GET · POST · PUT · DELETE</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Метод говорит серверу что именно ты хочешь сделать с данными.</p>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Метод</th><th>Что делает</th><th>Пример</th></tr>
+                <tr><td>GET</td><td>Получить данные</td><td>Загрузить список пользователей</td></tr>
+                <tr><td>POST</td><td>Создать новое</td><td>Зарегистрировать пользователя</td></tr>
+                <tr><td>PUT</td><td>Обновить существующее</td><td>Изменить имя пользователя</td></tr>
+                <tr><td>DELETE</td><td>Удалить</td><td>Удалить пользователя</td></tr>
+              </table>
+            </div>
+            <div class="rule tip" style="margin-top:0.8rem">
+              Аналогия с рестораном:<br>
+              GET — "покажи меню"<br>
+              POST — "хочу заказать блюдо"<br>
+              PUT — "хочу изменить заказ"<br>
+              DELETE — "отмени заказ"
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">КОДЫ</span>
+            <span class="card-title">Коды ответов сервера</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Каждый ответ сервера содержит код — число которое говорит что произошло.</p>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Код</th><th>Значение</th></tr>
+                <tr><td>200</td><td>Всё хорошо ✅</td></tr>
+                <tr><td>201</td><td>Создано ✅</td></tr>
+                <tr><td>400</td><td>Плохой запрос — неверные данные ❌</td></tr>
+                <tr><td>401</td><td>Не авторизован — нужен логин ❌</td></tr>
+                <tr><td>404</td><td>Не найдено — страница не существует ❌</td></tr>
+                <tr><td>500</td><td>Ошибка сервера — что-то сломалось ❌</td></tr>
+              </table>
+            </div>
+            <div class="rule warn" style="margin-top:0.8rem">
+              2xx — успех · 4xx — ошибка клиента · 5xx — ошибка сервера
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="footer">
-    <strong>Блок 1 завершён ✅ · Блок 2 завершён ✅</strong><br>
-    Следующий: Блок 3 — HTTP и API
+    <strong>Блок 1 завершён ✅ · Блок 2 завершён ✅ · Блок 3 в процессе ⏳</strong><br>
+    Пройдено: HTTP основы · Следующий: Первый HTTP сервер на Go
   </div>
  
 </div>
@@ -1441,11 +1525,13 @@ docker rmi my-go-app</pre>
   const sectionBlock = {
     s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
     s10:2, s11:2, s12:2, s13:2,
+    s14:3,
   };
 
   const blockLabels = {
     '1': 'конспект · блок 1 — основы go',
     '2': 'конспект · блок 2 — инструменты',
+    '3': 'конспект · блок 3 — http и api',
     'all': 'конспект · все блоки',
   };
 
