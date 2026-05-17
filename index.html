@@ -380,6 +380,8 @@
     <button class="nav-btn" onclick="navToggle('s9', this)">❌ Ошибки</button>
     <button class="nav-btn" onclick="navToggle('s10', this)">🌿 Git</button>
     <button class="nav-btn" onclick="navToggle('s11', this)">🐙 GitHub</button>
+    <button class="nav-btn" onclick="navToggle('s12', this)">🐧 Linux</button>
+    <button class="nav-btn" onclick="navToggle('s13', this)">🐳 Docker</button>
     <div class="nav-controls">
       <button class="ctrl-btn" onclick="expandAll()">развернуть все</button>
       <button class="ctrl-btn" onclick="collapseAll()">свернуть все</button>
@@ -391,14 +393,13 @@
 
   <!-- HEADER -->
   <div class="header">
-    <div class="header-label" id="header-label">конспект · все блоки</div>
+    <div class="header-label">конспект · блок 1 + блок 2 · основы go</div>
     <h1>Go <span>с нуля</span></h1>
     <p>Все пройденные темы с примерами кода — Дмитрий</p>
     <div class="pills">
-      <span class="pill pill-done" onclick="filterBlock('all')" style="cursor:pointer">🗂️ Все блоки</span>
-      <span class="pill pill-done" onclick="filterBlock('1')" style="cursor:pointer">✅ Блок 1 — Основы Go</span>
-      <span class="pill pill-next" onclick="filterBlock('2')" style="cursor:pointer">⏳ Блок 2 — Инструменты</span>
-      <span class="pill pill-todo">⬜ Блок 3 — HTTP и API</span>
+      <span class="pill pill-done">✅ Блок 1 — Основы Go</span>
+      <span class="pill pill-done">✅ Блок 2 — Инструменты</span>
+      <span class="pill pill-next">⏳ Блок 3 — HTTP и API</span>
       <span class="pill pill-todo">⬜ Блок 4 — Базы данных</span>
       <span class="pill pill-todo">⬜ Блок 5 — Продвинутый Go</span>
       <span class="pill pill-todo">⬜ Блок 6 — Проект</span>
@@ -406,7 +407,7 @@
   </div>
 
   <!-- SECTION 0: ОСНОВА -->
-  <div class="section" id="s0" data-block="1">
+  <div class="section" id="s0">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">📌</span>
       <span class="section-num">ОСНОВА</span>
@@ -465,7 +466,7 @@ ls</pre>
   </div>
 
   <!-- SECTION 1: ПЕРЕМЕННЫЕ -->
-  <div class="section" id="s1" data-block="1">
+  <div class="section" id="s1">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">📦</span>
       <span class="section-num">УР. 2</span>
@@ -533,7 +534,7 @@ fmt.<span class="fn">Println</span>(<span class="str">"Привет"</span>) <sp
   </div>
 
   <!-- SECTION 2: УСЛОВИЯ -->
-  <div class="section" id="s2" data-block="1">
+  <div class="section" id="s2">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🚦</span>
       <span class="section-num">УР. 3</span>
@@ -585,7 +586,7 @@ fmt.<span class="fn">Println</span>(<span class="str">"Привет"</span>) <sp
   </div>
 
   <!-- SECTION 3: ЦИКЛЫ -->
-  <div class="section" id="s3" data-block="1">
+  <div class="section" id="s3">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🔄</span>
       <span class="section-num">УР. 4</span>
@@ -655,7 +656,7 @@ fmt.<span class="fn">Println</span>(<span class="str">"Привет"</span>) <sp
   </div>
 
   <!-- SECTION 4: ФУНКЦИИ -->
-  <div class="section" id="s4" data-block="1">
+  <div class="section" id="s4">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🔧</span>
       <span class="section-num">УР. 5</span>
@@ -728,7 +729,7 @@ fmt.<span class="fn">Println</span>(результат) <span class="cm">// 8</s
   </div>
 
   <!-- SECTION 5: СЛАЙСЫ -->
-  <div class="section" id="s5" data-block="1">
+  <div class="section" id="s5">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">📋</span>
       <span class="section-num">УР. 6</span>
@@ -797,7 +798,7 @@ fmt.<span class="fn">Println</span>(<span class="fn">len</span>(оценки))</
   </div>
 
   <!-- SECTION 6: MAP -->
-  <div class="section" id="s6" data-block="1">
+  <div class="section" id="s6">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🗺️</span>
       <span class="section-num">УР. 7</span>
@@ -869,7 +870,7 @@ fmt.<span class="fn">Println</span>(телефоны[<span class="str">"Дмит
   </div>
 
   <!-- SECTION 7: СТРУКТУРЫ -->
-  <div class="section" id="s7" data-block="1">
+  <div class="section" id="s7">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🏗️</span>
       <span class="section-num">УР. 8</span>
@@ -945,7 +946,7 @@ products := []<span class="tp">Product</span>{
   </div>
 
   <!-- SECTION 8: ИНТЕРФЕЙСЫ -->
-  <div class="section" id="s8" data-block="1">
+  <div class="section" id="s8">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🔌</span>
       <span class="section-num">УР. 9</span>
@@ -1022,7 +1023,7 @@ products := []<span class="tp">Product</span>{
   </div>
 
   <!-- SECTION 9: ОШИБКИ -->
-  <div class="section" id="s9" data-block="1">
+  <div class="section" id="s9">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">❌</span>
       <span class="section-num">УР. 10</span>
@@ -1074,7 +1075,7 @@ fmt.<span class="fn">Println</span>(результат) <span class="cm">// 5</s
   </div>
 
   <!-- SECTION 10: GIT -->
-  <div class="section" id="s10" data-block="2">
+  <div class="section" id="s10">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🌿</span>
       <span class="section-num">БЛ. 2 · УР. 1</span>
@@ -1090,12 +1091,12 @@ fmt.<span class="fn">Println</span>(результат) <span class="cm">// 5</s
             <span class="card-title">Основные команды</span>
           </div>
           <div class="card-body">
-            <p class="desc">Git — машина времени для кода. Сохраняет историю всех изменений.</p>
+            <p class="desc">Git — машина времени для кода. Сохраняет историю всех изменений. Если что-то сломал — можно вернуться назад.</p>
             <div class="code-wrap">
               <pre><span class="cm"># Проверить версию Git</span>
 git --version
 
-<span class="cm"># Настроить имя и email (один раз)</span>
+<span class="cm"># Настроить имя и email (один раз!)</span>
 git config --global user.name "Dmitry"
 git config --global user.email "email@gmail.com"
 
@@ -1105,13 +1106,13 @@ git init
 <span class="cm"># Посмотреть что изменилось</span>
 git status
 
-<span class="cm"># Добавить все файлы</span>
+<span class="cm"># Добавить все файлы для сохранения</span>
 git add .
 
-<span class="cm"># Сохранить с описанием</span>
+<span class="cm"># Сохранить версию с описанием</span>
 git commit -m "описание что изменил"
 
-<span class="cm"># Посмотреть историю коммитов</span>
+<span class="cm"># История коммитов — коротко</span>
 git log --oneline
 
 <span class="cm"># Вернуться к старой версии</span>
@@ -1126,27 +1127,25 @@ git checkout main</pre>
         <div class="card">
           <div class="card-header">
             <span class="card-num">GIT</span>
-            <span class="card-title">Как работает коммит</span>
+            <span class="card-title">Три шага коммита</span>
           </div>
           <div class="card-body">
-            <p class="desc">Три шага которые повторяешь каждый раз когда делаешь изменения.</p>
+            <p class="desc">Каждый раз когда делаешь изменения — повторяй эти три шага.</p>
             <div class="table-wrap">
               <table>
-                <tr><th>Команда</th><th>Что делает</th></tr>
-                <tr><td>git init</td><td>Создать репозиторий</td></tr>
-                <tr><td>git status</td><td>Что изменилось</td></tr>
-                <tr><td>git add .</td><td>Добавить все файлы</td></tr>
-                <tr><td>git commit -m ""</td><td>Сохранить версию</td></tr>
-                <tr><td>git log --oneline</td><td>История коммитов</td></tr>
-                <tr><td>git checkout ID</td><td>Вернуться к версии</td></tr>
-                <tr><td>git checkout main</td><td>Вернуться к последней</td></tr>
+                <tr><th>Шаг</th><th>Команда</th><th>Что делает</th></tr>
+                <tr><td>1</td><td>git status</td><td>Посмотреть что изменилось</td></tr>
+                <tr><td>2</td><td>git add .</td><td>Добавить все файлы</td></tr>
+                <tr><td>3</td><td>git commit -m ""</td><td>Сохранить с описанием</td></tr>
               </table>
             </div>
             <div class="rule tip" style="margin-top:0.8rem">
-              Пиши понятные описания! "исправил ошибку авторизации" — хорошо. "изменил код" — плохо.
+              Пиши понятные описания коммитов!<br>
+              ✅ "исправил ошибку авторизации"<br>
+              ❌ "изменил код"
             </div>
             <div class="rule warn" style="margin-top:0.5rem">
-              Папка .git — не удаляй! В ней хранится вся история.
+              Папку .git не удаляй! В ней вся история изменений.
             </div>
           </div>
         </div>
@@ -1155,7 +1154,7 @@ git checkout main</pre>
   </div>
 
   <!-- SECTION 11: GITHUB -->
-  <div class="section" id="s11" data-block="2">
+  <div class="section" id="s11">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-icon">🐙</span>
       <span class="section-num">БЛ. 2 · УР. 2</span>
@@ -1171,9 +1170,9 @@ git checkout main</pre>
             <span class="card-title">Подключение и загрузка</span>
           </div>
           <div class="card-body">
-            <p class="desc">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.</p>
+            <p class="desc">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио для работодателей.</p>
             <div class="code-wrap">
-              <pre><span class="cm"># 1. Подключить локальный код к GitHub</span>
+              <pre><span class="cm"># 1. Подключить папку к GitHub репозиторию</span>
 git remote add origin https://github.com/username/repo.git
 
 <span class="cm"># 2. Загрузить код первый раз</span>
@@ -1188,14 +1187,14 @@ git push</pre>
             <div class="rule">
               <code>remote add origin</code> — говорим куда загружать<br>
               <code>git push</code> — загружаем код на GitHub<br>
-              <code>-u origin main</code> — только при первом push
+              <code>-u origin main</code> — только при ПЕРВОМ push
             </div>
           </div>
         </div>
         <div class="card">
           <div class="card-header">
             <span class="card-num">GITHUB</span>
-            <span class="card-title">Git vs GitHub</span>
+            <span class="card-title">Git vs GitHub + Pages</span>
           </div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1210,7 +1209,216 @@ git push</pre>
               Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼
             </div>
             <div class="rule tip" style="margin-top:0.5rem">
-              Твой репозиторий: github.com/dmitrytretyak19/go-learning
+              <strong>GitHub Pages</strong> — бесплатный хостинг для HTML файлов.<br>
+              Settings → Pages → Branch: main → Save<br>
+              Сайт: dmitrytretyak19.github.io/go-notes
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 12: LINUX -->
+  <div class="section" id="s12">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🐧</span>
+      <span class="section-num">БЛ. 2 · УР. 3</span>
+      <span class="section-title">Linux и терминал</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">LINUX</span>
+            <span class="card-title">Основные команды</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># Где я нахожусь?</span>
+pwd
+
+<span class="cm"># Список файлов в папке</span>
+ls
+
+<span class="cm"># Список со скрытыми файлами</span>
+ls -la
+
+<span class="cm"># Перейти в папку</span>
+cd папка
+cd ~/Desktop/claude
+
+<span class="cm"># Вернуться на уровень выше</span>
+cd ..
+
+<span class="cm"># Перейти домой</span>
+cd ~
+
+<span class="cm"># Создать папку</span>
+mkdir имя-папки
+
+<span class="cm"># Создать пустой файл</span>
+touch имя-файла.txt
+
+<span class="cm"># Показать содержимое файла</span>
+cat файл.txt
+
+<span class="cm"># Удалить файл</span>
+rm файл.txt
+
+<span class="cm"># Удалить папку со всем содержимым</span>
+rm -rf папка
+
+<span class="cm"># Очистить терминал</span>
+clear
+
+<span class="cm"># Открыть файл в VSCode</span>
+code файл.go</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">LINUX</span>
+            <span class="card-title">Шпаргалка команд</span>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <tr><th>Команда</th><th>Что делает</th></tr>
+                <tr><td>pwd</td><td>Показать текущую папку</td></tr>
+                <tr><td>ls</td><td>Список файлов</td></tr>
+                <tr><td>ls -la</td><td>Список со скрытыми файлами</td></tr>
+                <tr><td>cd папка</td><td>Перейти в папку</td></tr>
+                <tr><td>cd ..</td><td>Вернуться назад</td></tr>
+                <tr><td>cd ~</td><td>Перейти домой</td></tr>
+                <tr><td>mkdir имя</td><td>Создать папку</td></tr>
+                <tr><td>touch файл</td><td>Создать файл</td></tr>
+                <tr><td>cat файл</td><td>Показать содержимое</td></tr>
+                <tr><td>rm файл</td><td>Удалить файл</td></tr>
+                <tr><td>rm -rf папка</td><td>Удалить папку</td></tr>
+                <tr><td>clear</td><td>Очистить терминал</td></tr>
+              </table>
+            </div>
+            <div class="rule warn" style="margin-top:0.8rem">
+              ⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 13: DOCKER -->
+  <div class="section" id="s13">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🐳</span>
+      <span class="section-num">БЛ. 2 · УР. 4</span>
+      <span class="section-title">Docker — контейнеризация</span>
+      <span class="section-badge">3 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">DOCKER</span>
+            <span class="card-title">Что такое Docker</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Docker упаковывает твою программу вместе со всем что ей нужно — Go, библиотеки, настройки — в один контейнер. Работает одинаково везде.</p>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Понятие</th><th>Что это</th><th>Аналогия</th></tr>
+                <tr><td>Image (образ)</td><td>шаблон контейнера</td><td>рецепт блюда</td></tr>
+                <tr><td>Container</td><td>запущенный образ</td><td>готовое блюдо</td></tr>
+                <tr><td>Dockerfile</td><td>инструкция сборки</td><td>список ингредиентов</td></tr>
+                <tr><td>Docker Hub</td><td>библиотека образов</td><td>магазин рецептов</td></tr>
+              </table>
+            </div>
+            <div class="rule" style="margin-top:0.8rem">
+              Порядок работы:<br>
+              1. Написал Dockerfile (рецепт)<br>
+              2. docker build (приготовил)<br>
+              3. docker run (запустил)
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">DOCKERFILE</span>
+            <span class="card-title">Файл инструкций</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Dockerfile — файл без расширения в корне проекта. Содержит инструкции как собрать образ.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># Базовый образ — на основе чего строим</span>
+FROM golang:1.22
+
+<span class="cm"># Рабочая папка внутри контейнера</span>
+WORKDIR /app
+
+<span class="cm"># Копируем весь код внутрь контейнера</span>
+COPY . .
+
+<span class="cm"># Команда которая запустится при старте</span>
+CMD ["go", "run", "main.go"]</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              <code>FROM</code> — на основе какого образа строим<br>
+              <code>WORKDIR</code> — рабочая папка в контейнере<br>
+              <code>COPY . .</code> — копируем код внутрь<br>
+              <code>CMD</code> — команда запуска
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">КОМАНДЫ</span>
+            <span class="card-title">Основные команды Docker</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm"># Проверить версию Docker</span>
+docker --version
+
+<span class="cm"># Запустить тестовый контейнер</span>
+docker run hello-world
+
+<span class="cm"># Собрать образ из Dockerfile
+# -t = tag (название образа)
+# . = использовать текущую папку</span>
+docker build -t my-go-app .
+
+<span class="cm"># Запустить контейнер</span>
+docker run my-go-app
+
+<span class="cm"># Список всех образов</span>
+docker images
+
+<span class="cm"># Список запущенных контейнеров</span>
+docker ps
+
+<span class="cm"># Список всех контейнеров</span>
+docker ps -a
+
+<span class="cm"># Остановить контейнер</span>
+docker stop ID_контейнера
+
+<span class="cm"># Удалить контейнер</span>
+docker rm ID_контейнера
+
+<span class="cm"># Удалить образ</span>
+docker rmi my-go-app</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">
+              <code>-t название</code> даёт образу понятное имя вместо длинного ID типа sha256:bba8fd9c...
             </div>
           </div>
         </div>
@@ -1219,109 +1427,73 @@ git push</pre>
   </div>
 
   <div class="footer">
-    <strong>Блок 1 завершён ✅ · Блок 2 в процессе ⏳</strong><br>
-    Пройдено: Git · GitHub · Следующий: Linux и терминал
+    <strong>Блок 1 завершён ✅ · Блок 2 завершён ✅</strong><br>
+    Следующий: Блок 3 — HTTP и API
   </div>
 
 </div>
 
 <div class="toast" id="toast">Скопировано!</div>
 
+
 <script>
-  const sectionBlock = {
-    s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
-    s10:2, s11:2,
-  };
-
-  const blockLabels = {
-    '1': 'конспект · блок 1 — основы go',
-    '2': 'конспект · блок 2 — инструменты',
-    'all': 'конспект · все блоки',
-  };
-
-  function setLabel(block) {
-    const label = document.getElementById('header-label');
-    if (label) label.textContent = blockLabels[block] || 'конспект · все блоки';
-  }
-
-  function syncNavButtons() {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      const m = btn.getAttribute('onclick') && btn.getAttribute('onclick').match(/'(s\d+)'/);
-      if (!m) return;
-      const s = document.getElementById(m[1]);
-      btn.classList.toggle('active', s && s.style.display !== 'none' && !s.classList.contains('collapsed'));
-    });
-  }
-
-  // Пилюли — показывает блок, все разделы СВЁРНУТЫ
-  function filterBlock(block) {
-    document.querySelectorAll('.section').forEach(s => {
-      if (block === 'all') {
-        s.style.display = 'block';
-        s.classList.add('collapsed');
-      } else if (s.dataset.block === block) {
-        s.style.display = 'block';
-        s.classList.add('collapsed');
-      } else {
-        s.style.display = 'none';
-        s.classList.add('collapsed');
-      }
-    });
-    setLabel(block);
+  function toggleSection(header) {
+    const section = header.parentElement;
+    section.classList.toggle('collapsed');
     syncNavButtons();
   }
 
-  // Кнопки уроков — показывает блок, РАЗВОРАЧИВАЕТ нужный урок
   function navToggle(id, btn) {
     const section = document.getElementById(id);
+
     if (!section) return;
 
-    const block = String(sectionBlock[id]);
-
-    // Показываем только нужный блок
-    document.querySelectorAll('.section').forEach(s => {
-      if (s.dataset.block === block) {
-        s.style.display = 'block';
-      } else {
-        s.style.display = 'none';
-        s.classList.add('collapsed');
-      }
-    });
-
-    // Переключаем collapsed для нажатого урока
     section.classList.toggle('collapsed');
 
-    setLabel(block);
-    syncNavButtons();
-  }
+    
 
-  // Стрелка внутри раздела — просто сворачивает/разворачивает
-  function toggleSection(header) {
-    header.parentElement.classList.toggle('collapsed');
     syncNavButtons();
   }
 
   function expandAll() {
-    document.querySelectorAll('.section').forEach(s => {
-      s.style.display = 'block';
-      s.classList.remove('collapsed');
+    document.querySelectorAll('.section').forEach(section => {
+      section.classList.remove('collapsed');
     });
-    setLabel('all');
+
     syncNavButtons();
   }
 
   function collapseAll() {
-    document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
+    document.querySelectorAll('.section').forEach(section => {
+      section.classList.add('collapsed');
+    });
+
     syncNavButtons();
+  }
+
+  function syncNavButtons() {
+    const sections = document.querySelectorAll('.section');
+    const buttons = document.querySelectorAll('.nav-btn');
+
+    sections.forEach((section, index) => {
+      if (!buttons[index]) return;
+
+      const isOpen = !section.classList.contains('collapsed');
+
+      buttons[index].classList.toggle('active', isOpen);
+    });
   }
 
   function copyCode(btn) {
     const pre = btn.previousElementSibling;
+
     navigator.clipboard.writeText(pre.innerText).then(() => {
       btn.textContent = '✓ скопировано';
       btn.classList.add('copied');
+
       const toast = document.getElementById('toast');
       toast.classList.add('show');
+
       setTimeout(() => {
         btn.textContent = 'копировать';
         btn.classList.remove('copied');
@@ -1330,8 +1502,8 @@ git push</pre>
     });
   }
 
-  // Инициализация — все блоки видны, все свёрнуты
-  filterBlock('all');
+  // Initial sync
+  syncNavButtons();
 </script>
 
 </body>
