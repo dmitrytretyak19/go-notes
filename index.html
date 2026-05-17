@@ -1228,60 +1228,104 @@ git push</pre>
 <div class="toast" id="toast">Скопировано!</div>
 
 <script>
-  function toggleSection(header) {
-    header.parentElement.classList.toggle('collapsed');
-    syncNavButtons();
+  // Маппинг секций к блокам
+  const sectionBlock = {
+    s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
+    s10:2, s11:2,
+  };
+
+  const blockNames = {
+    1: 'блок 1 · основы go',
+    2: 'блок 2 · инструменты',
+  };
+
+  // Обновить подпись в шапке
+  function updateLabel() {
+    const openBlocks = new Set();
+    document.querySelectorAll('.section').forEach(s => {
+      if (s.style.display !== 'none' && !s.classList.contains('collapsed')) {
+        openBlocks.add(Number(s.dataset.block));
+      }
+    });
+    const label = document.getElementById('header-label');
+    if (!label) return;
+    if (openBlocks.size === 1) {
+      label.textContent = 'конспект · ' + (blockNames[[...openBlocks][0]] || 'блок');
+    } else {
+      label.textContent = 'конспект · все блоки';
+    }
   }
 
+  // Синхронизировать подсветку кнопок шапки
+  function syncNavButtons() {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      const m = btn.getAttribute('onclick') && btn.getAttribute('onclick').match(/'(s\d+)'/);
+      if (!m) return;
+      const s = document.getElementById(m[1]);
+      btn.classList.toggle('active', s && s.style.display !== 'none' && !s.classList.contains('collapsed'));
+    });
+  }
+
+  // Нажатие на кнопку урока в шапке
   function navToggle(id, btn) {
     const section = document.getElementById(id);
     if (!section) return;
+
+    const block = sectionBlock[id];
+
+    // Показываем все секции этого блока, скрываем другие
+    document.querySelectorAll('.section').forEach(s => {
+      if (Number(s.dataset.block) === block) {
+        s.style.display = 'block';
+      } else {
+        s.style.display = 'none';
+      }
+    });
+
+    // Переключаем collapsed для нажатой секции
     section.classList.toggle('collapsed');
+
     syncNavButtons();
+    updateLabel();
+  }
+
+  // Фильтр по блоку через пилюли
+  function filterBlock(block) {
+    document.querySelectorAll('.section').forEach(s => {
+      if (block === 'all') {
+        s.style.display = 'block';
+        s.classList.remove('collapsed');
+      } else if (s.dataset.block === block) {
+        s.style.display = 'block';
+        s.classList.remove('collapsed');
+      } else {
+        s.style.display = 'none';
+      }
+    });
+    syncNavButtons();
+    updateLabel();
+  }
+
+  // Раскрыть/свернуть через заголовок секции
+  function toggleSection(header) {
+    header.parentElement.classList.toggle('collapsed');
+    syncNavButtons();
+    updateLabel();
   }
 
   function expandAll() {
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('collapsed'));
+    document.querySelectorAll('.section').forEach(s => {
+      s.style.display = 'block';
+      s.classList.remove('collapsed');
+    });
     syncNavButtons();
+    updateLabel();
   }
 
   function collapseAll() {
     document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
     syncNavButtons();
-  }
-
-  function syncNavButtons() {
-    const sections = document.querySelectorAll('.section');
-    const buttons = document.querySelectorAll('.nav-btn');
-    sections.forEach((section, index) => {
-      if (!buttons[index]) return;
-      buttons[index].classList.toggle('active', !section.classList.contains('collapsed'));
-    });
-  }
-
-  // Фильтрация по блоку через пилюли
-  function filterBlock(block) {
-    const sections = document.querySelectorAll('.section');
-    const pills = document.querySelectorAll('.pill');
-
-    pills.forEach(p => p.style.fontWeight = 'normal');
-
-    if (block === 'all') {
-      sections.forEach(s => {
-        s.style.display = 'block';
-        s.classList.remove('collapsed');
-      });
-    } else {
-      sections.forEach(s => {
-        if (s.dataset.block === block) {
-          s.style.display = 'block';
-          s.classList.remove('collapsed');
-        } else {
-          s.style.display = 'none';
-        }
-      });
-    }
-    syncNavButtons();
+    updateLabel();
   }
 
   function copyCode(btn) {
@@ -1299,7 +1343,8 @@ git push</pre>
     });
   }
 
-  syncNavButtons();
+  // Инициализация
+  expandAll();
 </script>
 
 </body>
