@@ -391,7 +391,7 @@
 
   <!-- HEADER -->
   <div class="header">
-    <div class="header-label">конспект · все темы</div>
+    <div class="header-label" id="header-label">конспект · все блоки</div>
     <h1>Go <span>с нуля</span></h1>
     <p>Все пройденные темы с примерами кода — Дмитрий</p>
     <div class="pills">
@@ -1228,35 +1228,22 @@ git push</pre>
 <div class="toast" id="toast">Скопировано!</div>
 
 <script>
-  // Маппинг секций к блокам
   const sectionBlock = {
     s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
     s10:2, s11:2,
   };
 
-  const blockNames = {
-    1: 'блок 1 · основы go',
-    2: 'блок 2 · инструменты',
+  const blockLabels = {
+    '1': 'конспект · блок 1 — основы go',
+    '2': 'конспект · блок 2 — инструменты',
+    'all': 'конспект · все блоки',
   };
 
-  // Обновить подпись в шапке
-  function updateLabel() {
-    const openBlocks = new Set();
-    document.querySelectorAll('.section').forEach(s => {
-      if (s.style.display !== 'none' && !s.classList.contains('collapsed')) {
-        openBlocks.add(Number(s.dataset.block));
-      }
-    });
+  function setLabel(block) {
     const label = document.getElementById('header-label');
-    if (!label) return;
-    if (openBlocks.size === 1) {
-      label.textContent = 'конспект · ' + (blockNames[[...openBlocks][0]] || 'блок');
-    } else {
-      label.textContent = 'конспект · все блоки';
-    }
+    if (label) label.textContent = blockLabels[block] || 'конспект · все блоки';
   }
 
-  // Синхронизировать подсветку кнопок шапки
   function syncNavButtons() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
       const m = btn.getAttribute('onclick') && btn.getAttribute('onclick').match(/'(s\d+)'/);
@@ -1266,51 +1253,52 @@ git push</pre>
     });
   }
 
-  // Нажатие на кнопку урока в шапке
-  function navToggle(id, btn) {
-    const section = document.getElementById(id);
-    if (!section) return;
-
-    const block = sectionBlock[id];
-
-    // Показываем все секции этого блока, скрываем другие
-    document.querySelectorAll('.section').forEach(s => {
-      if (Number(s.dataset.block) === block) {
-        s.style.display = 'block';
-      } else {
-        s.style.display = 'none';
-      }
-    });
-
-    // Переключаем collapsed для нажатой секции
-    section.classList.toggle('collapsed');
-
-    syncNavButtons();
-    updateLabel();
-  }
-
-  // Фильтр по блоку через пилюли
+  // Пилюли — показывает блок, все разделы СВЁРНУТЫ
   function filterBlock(block) {
     document.querySelectorAll('.section').forEach(s => {
       if (block === 'all') {
         s.style.display = 'block';
-        s.classList.remove('collapsed');
+        s.classList.add('collapsed');
       } else if (s.dataset.block === block) {
         s.style.display = 'block';
-        s.classList.remove('collapsed');
+        s.classList.add('collapsed');
       } else {
         s.style.display = 'none';
+        s.classList.add('collapsed');
       }
     });
+    setLabel(block);
     syncNavButtons();
-    updateLabel();
   }
 
-  // Раскрыть/свернуть через заголовок секции
+  // Кнопки уроков — показывает блок, РАЗВОРАЧИВАЕТ нужный урок
+  function navToggle(id, btn) {
+    const section = document.getElementById(id);
+    if (!section) return;
+
+    const block = String(sectionBlock[id]);
+
+    // Показываем только нужный блок
+    document.querySelectorAll('.section').forEach(s => {
+      if (s.dataset.block === block) {
+        s.style.display = 'block';
+      } else {
+        s.style.display = 'none';
+        s.classList.add('collapsed');
+      }
+    });
+
+    // Переключаем collapsed для нажатого урока
+    section.classList.toggle('collapsed');
+
+    setLabel(block);
+    syncNavButtons();
+  }
+
+  // Стрелка внутри раздела — просто сворачивает/разворачивает
   function toggleSection(header) {
     header.parentElement.classList.toggle('collapsed');
     syncNavButtons();
-    updateLabel();
   }
 
   function expandAll() {
@@ -1318,14 +1306,13 @@ git push</pre>
       s.style.display = 'block';
       s.classList.remove('collapsed');
     });
+    setLabel('all');
     syncNavButtons();
-    updateLabel();
   }
 
   function collapseAll() {
     document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
     syncNavButtons();
-    updateLabel();
   }
 
   function copyCode(btn) {
@@ -1343,8 +1330,8 @@ git push</pre>
     });
   }
 
-  // Инициализация
-  expandAll();
+  // Инициализация — все блоки видны, все свёрнуты
+  filterBlock('all');
 </script>
 
 </body>
