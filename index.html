@@ -1220,15 +1220,223 @@ git push</pre>
     </div>
   </div>
 
-  <div class="footer">
-    <strong>Блок 1 завершён ✅ · Блок 2 в процессе ⏳</strong><br>
-    Пройдено: Git · GitHub · Следующий: Linux и терминал
+   <!-- SECTION 12: LINUX -->
+  <div class="section" id="s12" data-block="2">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🐧</span>
+      <span class="section-num">БЛ. 2 · УР. 3</span>
+      <span class="section-title">Linux и терминал</span>
+      <span class="section-badge">2 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">LINUX</span>
+            <span class="card-title">Основные команды</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># Где я нахожусь?</span>
+pwd
+ 
+<span class="cm"># Список файлов в папке</span>
+ls
+ 
+<span class="cm"># Список со скрытыми файлами</span>
+ls -la
+ 
+<span class="cm"># Перейти в папку</span>
+cd папка
+cd ~/Desktop/claude
+ 
+<span class="cm"># Вернуться на уровень выше</span>
+cd ..
+ 
+<span class="cm"># Перейти домой</span>
+cd ~
+ 
+<span class="cm"># Создать папку</span>
+mkdir имя-папки
+ 
+<span class="cm"># Создать пустой файл</span>
+touch имя-файла.txt
+ 
+<span class="cm"># Показать содержимое файла</span>
+cat файл.txt
+ 
+<span class="cm"># Удалить файл</span>
+rm файл.txt
+ 
+<span class="cm"># Удалить папку со всем содержимым</span>
+rm -rf папка
+ 
+<span class="cm"># Очистить терминал</span>
+clear
+ 
+<span class="cm"># Открыть файл в VSCode</span>
+code файл.go</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">LINUX</span>
+            <span class="card-title">Шпаргалка команд</span>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <tr><th>Команда</th><th>Что делает</th></tr>
+                <tr><td>pwd</td><td>Показать текущую папку</td></tr>
+                <tr><td>ls</td><td>Список файлов</td></tr>
+                <tr><td>ls -la</td><td>Список со скрытыми файлами</td></tr>
+                <tr><td>cd папка</td><td>Перейти в папку</td></tr>
+                <tr><td>cd ..</td><td>Вернуться назад</td></tr>
+                <tr><td>cd ~</td><td>Перейти домой</td></tr>
+                <tr><td>mkdir имя</td><td>Создать папку</td></tr>
+                <tr><td>touch файл</td><td>Создать файл</td></tr>
+                <tr><td>cat файл</td><td>Показать содержимое</td></tr>
+                <tr><td>rm файл</td><td>Удалить файл</td></tr>
+                <tr><td>rm -rf папка</td><td>Удалить папку</td></tr>
+                <tr><td>clear</td><td>Очистить терминал</td></tr>
+              </table>
+            </div>
+            <div class="rule warn" style="margin-top:0.8rem">
+              ⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-
+ 
+  <!-- SECTION 13: DOCKER -->
+  <div class="section" id="s13" data-block="2">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-icon">🐳</span>
+      <span class="section-num">БЛ. 2 · УР. 4</span>
+      <span class="section-title">Docker — контейнеризация</span>
+      <span class="section-badge">3 карточки</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">DOCKER</span>
+            <span class="card-title">Что такое Docker</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Docker упаковывает твою программу вместе со всем что ей нужно — Go, библиотеки, настройки — в один контейнер. Работает одинаково везде.</p>
+            <div class="table-wrap">
+              <table>
+                <tr><th>Понятие</th><th>Что это</th><th>Аналогия</th></tr>
+                <tr><td>Image (образ)</td><td>шаблон контейнера</td><td>рецепт блюда</td></tr>
+                <tr><td>Container</td><td>запущенный образ</td><td>готовое блюдо</td></tr>
+                <tr><td>Dockerfile</td><td>инструкция сборки</td><td>список ингредиентов</td></tr>
+                <tr><td>Docker Hub</td><td>библиотека образов</td><td>магазин рецептов</td></tr>
+              </table>
+            </div>
+            <div class="rule" style="margin-top:0.8rem">
+              Порядок работы:<br>
+              1. Написал Dockerfile (рецепт)<br>
+              2. docker build (приготовил)<br>
+              3. docker run (запустил)
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">DOCKERFILE</span>
+            <span class="card-title">Файл инструкций</span>
+          </div>
+          <div class="card-body">
+            <p class="desc">Dockerfile — файл без расширения в корне проекта. Содержит инструкции как собрать образ.</p>
+            <div class="code-wrap">
+              <pre><span class="cm"># Базовый образ — на основе чего строим</span>
+FROM golang:1.22
+ 
+<span class="cm"># Рабочая папка внутри контейнера</span>
+WORKDIR /app
+ 
+<span class="cm"># Копируем весь код внутрь контейнера</span>
+COPY . .
+ 
+<span class="cm"># Команда которая запустится при старте</span>
+CMD ["go", "run", "main.go"]</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule">
+              <code>FROM</code> — на основе какого образа строим<br>
+              <code>WORKDIR</code> — рабочая папка в контейнере<br>
+              <code>COPY . .</code> — копируем код внутрь<br>
+              <code>CMD</code> — команда запуска
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-num">КОМАНДЫ</span>
+            <span class="card-title">Основные команды Docker</span>
+          </div>
+          <div class="card-body">
+            <div class="code-wrap">
+              <pre><span class="cm"># Проверить версию Docker</span>
+docker --version
+ 
+<span class="cm"># Запустить тестовый контейнер</span>
+docker run hello-world
+ 
+<span class="cm"># Собрать образ из Dockerfile
+# -t = tag (название образа)
+# . = использовать текущую папку</span>
+docker build -t my-go-app .
+ 
+<span class="cm"># Запустить контейнер</span>
+docker run my-go-app
+ 
+<span class="cm"># Список всех образов</span>
+docker images
+ 
+<span class="cm"># Список запущенных контейнеров</span>
+docker ps
+ 
+<span class="cm"># Список всех контейнеров</span>
+docker ps -a
+ 
+<span class="cm"># Остановить контейнер</span>
+docker stop ID_контейнера
+ 
+<span class="cm"># Удалить контейнер</span>
+docker rm ID_контейнера
+ 
+<span class="cm"># Удалить образ</span>
+docker rmi my-go-app</pre>
+              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
+            </div>
+            <div class="rule tip">
+              <code>-t название</code> даёт образу понятное имя вместо длинного ID типа sha256:bba8fd9c...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  <div class="footer">
+    <strong>Блок 1 завершён ✅ · Блок 2 завершён ✅</strong><br>
+    Следующий: Блок 3 — HTTP и API
+  </div>
+ 
 </div>
-
+ 
 <div class="toast" id="toast">Скопировано!</div>
-
+ 
+ 
 <script>
   const sectionBlock = {
     s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
