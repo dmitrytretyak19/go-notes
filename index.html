@@ -2,1633 +2,714 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Go — Блок 1 Конспект</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Go — Интерактивный Конспект (iOS 26)</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@400;600;700&display=swap');
+/* ─── IOS 26 Design System ─── */
+:root {
+  --sys-blue:    #007AFF;
+  --sys-green:   #34C759;
+  --sys-red:     #FF3B30;
+  --sys-orange:  #FF9500;
+  --sys-purple:  #AF52DE;
+  --sys-gray:    #8E8E93;
+  --sys-bg:      #F2F2F7;
 
-  :root {
-    --bg: #0b0d12;
-    --surface: #12151e;
-    --surface2: #171b26;
-    --border: #1d2235;
-    --accent: #00e5b0;
-    --accent2: #7c6af7;
-    --accent3: #ff6b6b;
-    --accent4: #ffd166;
-    --text: #dde4f0;
-    --muted: #5a6680;
-    --code-bg: #090b0f;
-  }
+  --glass-base:    rgba(255, 255, 255, 0.7);
+  --glass-panel:   rgba(255, 255, 255, 0.45);
+  --glass-card:    rgba(255, 255, 255, 0.75);
+  --glass-code:    rgba(28, 28, 30, 0.9);
+  
+  --blur-heavy:    blur(40px) saturate(200%);
+  --blur-medium:   blur(24px) saturate(180%);
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  --border-glass:  rgba(255, 255, 255, 0.8);
+  --border-soft:   rgba(0, 0, 0, 0.06);
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
-    min-height: 100vh;
-  }
+  --shadow-float:  0 20px 40px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0,0,0,0.02);
+  --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 1);
+  --shadow-btn:    0 2px 8px rgba(0, 0, 0, 0.04);
 
-  /* STICKY NAV */
-  .nav {
-    position: relative;
-    z-index: 100;
-    background: rgba(11,13,18,0.95);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-    padding: 0.7rem 1.2rem;
-  }
+  --text-primary:  #1D1D1F;
+  --text-secondary:#86868B;
+  --text-tertiary: #A1A1A6;
 
-  .nav-inner {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    flex-wrap: wrap;
-  }
+  --radius-xl:     28px;
+  --radius-lg:     18px;
+  --radius-md:     12px;
+  --radius-sm:     8px;
+  --radius-pill:   999px;
 
-  .nav-logo {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.75rem;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    white-space: nowrap;
-    margin-right: 0.5rem;
-  }
+  --font-sans:     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+  --font-mono:     "SF Mono", ui-monospace, "JetBrains Mono", monospace;
+}
 
-  .nav-btn {
-    padding: 0.3rem 0.7rem;
-    border-radius: 7px;
-    font-size: 0.62rem;
-    font-family: 'Unbounded', sans-serif;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--muted);
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .nav-btn.active { background: rgba(0,229,176,0.1); border-color: var(--accent); color: var(--accent); }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
 
-  .nav-controls {
-    margin-left: auto;
-    display: flex;
-    gap: 0.5rem;
-  }
+body {
+  background-color: #EBF0F5;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
 
-  .ctrl-btn {
-    padding: 0.3rem 0.8rem;
-    border-radius: 7px;
-    font-size: 0.62rem;
-    font-family: 'JetBrains Mono', monospace;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    transition: all 0.2s;
-  }
-  .ctrl-btn:hover { color: var(--text); border-color: var(--text); }
+/* Скрытие элементов вне режима редактирования */
+body:not(.edit-mode) .require-edit { display: none !important; }
 
-  /* MAIN */
-  .main { padding: 2rem 1.2rem 4rem; }
+/* Fluid Animated Background Mesh */
+.bg-mesh {
+  position: fixed; inset: -50%; z-index: 0; pointer-events: none;
+  background: 
+    radial-gradient(circle at 15% 25%, rgba(0, 122, 255, 0.09) 0%, transparent 35%),
+    radial-gradient(circle at 85% 15%, rgba(175, 82, 222, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(52, 199, 89, 0.07) 0%, transparent 45%);
+  animation: meshFlow 30s ease-in-out infinite alternate;
+  filter: blur(50px);
+}
+@keyframes meshFlow {
+  0% { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(4deg) scale(1.05); }
+}
 
-  /* HEADER */
-  .header {
-    text-align: center;
-    margin-bottom: 2.5rem;
-    max-width: 1100px;
-    margin-left: auto;
-    margin-right: auto;
-  }
+/* Floating Dynamic Island Nav */
+.nav-container {
+  position: fixed; top: 16px; left: 0; right: 0; z-index: 300;
+  display: flex; justify-content: center; padding: 0 16px; pointer-events: none;
+}
+.nav {
+  pointer-events: auto; display: flex; flex-direction: column; gap: 10px;
+  background: var(--glass-base); backdrop-filter: var(--blur-heavy); -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass); border-radius: var(--radius-xl);
+  padding: 12px 18px; box-shadow: var(--shadow-float); width: 100%; max-width: 1050px;
+}
+.nav-top { display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 16px; }
+.nav-logo-badge { background: var(--sys-blue); color: white; padding: 4px 8px; border-radius: 8px; font-size: 12px; }
+.nav-logo span { color: var(--sys-blue); font-weight: 400; }
 
-  .header-label {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.58rem;
-    color: var(--accent);
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    margin-bottom: 0.7rem;
-  }
+.nav-controls { display: flex; gap: 6px; align-items: center; }
+.ctrl-btn {
+  background: rgba(0,0,0,0.04); color: var(--text-secondary); border: none;
+  padding: 6px 12px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px;
+}
+.ctrl-btn:hover { background: rgba(0,0,0,0.08); color: var(--text-primary); }
+.ctrl-btn.save { background: var(--sys-blue); color: white; font-weight: 600; box-shadow: 0 4px 12px rgba(0,122,255,0.25); }
+.ctrl-btn.save:hover { background: #0066D6; }
+.ctrl-btn.add-topic { background: rgba(52, 199, 89, 0.1); color: #248A3D; }
+.ctrl-btn.add-topic:hover { background: rgba(52, 199, 89, 0.15); }
 
-  .header h1 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 1.8rem;
-    color: var(--text);
-    margin-bottom: 0.4rem;
-  }
+.nav-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; -ms-overflow-style: none; }
+.nav-strip::-webkit-scrollbar { display: none; }
+.nav-btn {
+  padding: 6px 14px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 500;
+  background: rgba(255,255,255,0.4); color: var(--text-primary); border: 1px solid var(--border-glass);
+  cursor: pointer; white-space: nowrap; transition: all 0.2s; box-shadow: var(--shadow-btn);
+}
+.nav-btn:hover { background: rgba(255,255,255,0.7); }
+.nav-btn.active { background: var(--text-primary); color: white; border-color: var(--text-primary); }
 
-  .header h1 span {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
+/* Main layout */
+.main { position: relative; z-index: 10; padding: 155px 16px 80px; max-width: 1050px; margin: 0 auto; }
 
-  .header p { color: var(--muted); font-size: 0.72rem; margin-bottom: 1.5rem; }
+.header { text-align: center; margin-bottom: 32px; }
+.header-label {
+  display: inline-block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--sys-blue); background: rgba(0, 122, 255, 0.08); padding: 5px 12px; border-radius: var(--radius-pill); margin-bottom: 12px;
+}
+.header h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
+.header p { color: var(--text-secondary); font-size: 16px; margin-bottom: 20px; }
 
-  .pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    justify-content: center;
-  }
+/* Dynamic Pills System */
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.pill { padding: 6px 14px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+.pill:hover { filter: brightness(0.95); transform: translateY(-1px); }
+.pill-all { background: rgba(0,0,0,0.05); color: var(--text-primary); }
+.pill.active-pill { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.1); filter: brightness(0.9); }
 
-  .pill {
-    padding: 0.22rem 0.55rem;
-    border-radius: 20px;
-    font-size: 0.6rem;
-    font-family: 'Unbounded', sans-serif;
-  }
-  .pill-done { background: rgba(0,229,176,0.1); color: var(--accent); border: 1px solid rgba(0,229,176,0.2); }
-  .pill-next { background: rgba(124,106,247,0.1); color: var(--accent2); border: 1px solid rgba(124,106,247,0.2); }
-  .pill-todo { background: rgba(255,255,255,0.03); color: var(--muted); border: 1px solid var(--border); }
+.pill-c0 { background: rgba(52, 199, 89, 0.12); color: #248A3D; }
+.pill-c1 { background: rgba(0, 122, 255, 0.12); color: var(--sys-blue); }
+.pill-c2 { background: rgba(175, 82, 222, 0.12); color: var(--sys-purple); }
+.pill-c3 { background: rgba(255, 149, 0, 0.12); color: #C27000; }
+.pill-c4 { background: rgba(255, 59, 48, 0.12); color: var(--sys-red); }
 
-  /* SECTION */
-  .section {
-    max-width: 1100px;
-    margin: 0 auto 1rem;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
+/* Sections */
+.section {
+  background: var(--glass-panel); backdrop-filter: var(--blur-medium); -webkit-backdrop-filter: var(--blur-medium);
+  border-radius: var(--radius-xl); border: 1px solid var(--border-glass); box-shadow: var(--shadow-card);
+  margin-bottom: 20px; overflow: hidden; transition: box-shadow 0.3s;
+}
+.section:hover { box-shadow: var(--shadow-float); }
+.section-header {
+  padding: 14px 20px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+  background: rgba(255,255,255,0.25); border-bottom: 1px solid transparent;
+}
+.section:not(.collapsed) .section-header { border-bottom-color: var(--border-soft); }
+.section-icon { font-size: 20px; outline: none; }
+.section-num { font-size: 11px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.04); padding: 3px 8px; border-radius: 6px; outline: none; }
+.section-title { font-size: 17px; font-weight: 600; flex: 1; letter-spacing: -0.01em; outline: none; }
+.chevron { color: var(--text-tertiary); font-size: 14px; transition: transform 0.2s; }
+.section.collapsed .chevron { transform: rotate(-90deg); }
+.section-body { padding: 16px; background: rgba(255,255,255,0.05); }
+.section.collapsed .section-body { display: none; }
 
-  .section:hover { border-color: rgba(0,229,176,0.25); }
+/* COMPACT GRID & CARDS */
+.grid { 
+  display: grid; 
+  /* ИЗМЕНЕНО: Сделал карточки компактнее: 260px вместо 310px, отступы меньше */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
+  gap: 12px; 
+}
+.card { background: var(--glass-card); border-radius: var(--radius-lg); border: 1px solid var(--border-glass); box-shadow: 0 4px 16px rgba(0,0,0,0.01); display: flex; flex-direction: column; position: relative; }
+.card-header { padding: 10px 14px 8px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-soft); }
+.card-title { font-size: 13.5px; font-weight: 600; color: var(--sys-blue); flex: 1; outline: none; }
+.card-body { padding: 10px 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; outline: none; }
 
-  .section-header {
-    padding: 1rem 1.4rem;
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    cursor: pointer;
-    background: var(--surface);
-    user-select: none;
-    transition: background 0.2s;
-  }
+[contenteditable="true"]:focus { outline: none; background: rgba(0,122,255,0.05); box-shadow: 0 0 0 2px rgba(0,122,255,0.2); border-radius: 6px; }
+pre[contenteditable="true"]:focus {
+  background: var(--glass-code) !important; box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.6); color: #F5F5F7 !important;
+}
 
-  .section-header:hover { background: var(--surface2); }
+/* COMPACT CODE BLOCKS */
+.code-wrap { position: relative; border-radius: var(--radius-md); overflow: hidden; margin-top: 2px; }
+pre { background: var(--glass-code); padding: 12px 14px; font-size: 11.5px; line-height: 1.45; font-family: var(--font-mono); color: #F5F5F7; overflow-x: auto; outline: none; white-space: pre-wrap; transition: background 0.2s, box-shadow 0.2s; }
+.copy-btn { position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #E4E4E7; padding: 4px 8px; border-radius: 6px; font-size: 9.5px; font-weight: 500; cursor: pointer; backdrop-filter: blur(4px); transition: 0.2s; z-index: 2; }
+.copy-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
 
-  .section-icon { font-size: 1.1rem; line-height: 1; }
+/* COMPACT RULES */
+.rule { padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; line-height: 1.35; border-left: 3px solid var(--sys-blue); background: rgba(0,122,255,0.06); color: var(--text-primary); outline: none; }
+.rule.warn { border-left-color: var(--sys-red); background: rgba(255,59,48,0.06); }
+.rule.tip { border-left-color: var(--sys-orange); background: rgba(255,149,0,0.06); }
+.rule.purple { border-left-color: var(--sys-purple); background: rgba(175,82,222,0.06); }
 
-  .section-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.58rem;
-    color: var(--muted);
-    background: rgba(255,255,255,0.05);
-    padding: 0.2rem 0.5rem;
-    border-radius: 5px;
-    white-space: nowrap;
-  }
+/* Utility Tools */
+.del-btn { background: rgba(255,59,48,0.08); color: var(--sys-red); border: none; padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.del-btn:hover { background: rgba(255,59,48,0.15); }
 
-  .section-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.8rem;
-    color: var(--text);
-    flex: 1;
-  }
+.add-card-container { display: flex; justify-content: center; margin-top: 12px; }
+.btn-add-card { background: rgba(0,122,255,0.08); color: var(--sys-blue); border: 1px dashed rgba(0,122,255,0.3); padding: 8px 20px; border-radius: var(--radius-md); font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; width: 100%; text-align: center; }
+.btn-add-card:hover { background: rgba(0,122,255,0.12); border-dashed-color: var(--sys-blue); }
 
-  .section-badge {
-    font-size: 0.6rem;
-    color: var(--muted);
-    background: rgba(255,255,255,0.04);
-    padding: 0.2rem 0.5rem;
-    border-radius: 5px;
-  }
+.select-type { font-size: 11px; background: rgba(0,0,0,0.04); border: none; padding: 3px 6px; border-radius: 6px; color: var(--text-secondary); cursor: pointer; outline: none; }
 
-  .chevron {
-    color: var(--muted);
-    font-size: 0.75rem;
-    transition: transform 0.25s;
-  }
+/* Toast Window */
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translate(-50%, 80px) scale(0.9); background: rgba(28,28,30,0.9); backdrop-filter: blur(10px); color: white; padding: 12px 24px; border-radius: var(--radius-pill); font-size: 14px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.15); transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); z-index: 9999; opacity: 0; pointer-events: none; }
+.toast.show { transform: translate(-50%, 0) scale(1); opacity: 1; }
 
-  .section.collapsed .chevron { transform: rotate(-90deg); }
+.footer { text-align: center; margin-top: 30px; padding: 24px; background: rgba(255,255,255,0.3); border-radius: var(--radius-xl); font-size: 13px; color: var(--text-secondary); border: 1px solid var(--border-glass); }
 
-  .section-body {
-    border-top: 1px solid var(--border);
-    padding: 1.2rem 1.4rem;
-    background: rgba(255,255,255,0.01);
-  }
-
-  .section.collapsed .section-body { display: none; }
-
-  /* GRID */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-  }
-
-  /* CARD */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .card-header {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    background: rgba(255,255,255,0.02);
-  }
-
-  .card-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.55rem;
-    color: var(--muted);
-    background: rgba(255,255,255,0.05);
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-  }
-
-  .card-title {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 0.7rem;
-    color: var(--accent);
-  }
-
-  .card-body { padding: 0.9rem 1rem; }
-
-  .desc {
-    font-size: 0.7rem;
-    color: var(--muted);
-    margin-bottom: 0.7rem;
-    line-height: 1.7;
-  }
-
-  /* CODE */
-  .code-wrap { position: relative; margin-bottom: 0.7rem; }
-
-  pre {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 0.8rem 0.9rem;
-    font-size: 0.68rem;
-    line-height: 1.8;
-    overflow-x: auto;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .copy-btn {
-    position: absolute;
-    top: 0.45rem;
-    right: 0.45rem;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--muted);
-    font-size: 0.6rem;
-    font-family: 'JetBrains Mono', monospace;
-    padding: 0.2rem 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .copy-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(0,229,176,0.08); }
-  .copy-btn.copied { color: var(--accent); border-color: var(--accent); }
-
-  /* SYNTAX */
-  .kw { color: #8b7cf8; }
-  .str { color: #7ec897; }
-  .num { color: #ffd166; }
-  .fn { color: #00e5b0; }
-  .cm { color: #2d3a52; font-style: italic; }
-  .tp { color: #ff9a5c; }
-
-  /* RULES */
-  .rule {
-    background: rgba(0,229,176,0.05);
-    border-left: 3px solid var(--accent);
-    padding: 0.55rem 0.8rem;
-    border-radius: 0 6px 6px 0;
-    font-size: 0.68rem;
-    color: var(--text);
-    margin-top: 0.5rem;
-    line-height: 1.75;
-  }
-  .rule.warn { background: rgba(255,107,107,0.05); border-left-color: var(--accent3); }
-  .rule.tip { background: rgba(255,209,102,0.05); border-left-color: var(--accent4); }
-  .rule.purple { background: rgba(124,106,247,0.05); border-left-color: var(--accent2); }
-
-  /* TABLE */
-  .table-wrap { overflow-x: auto; margin-top: 0.5rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.68rem; }
-  th { background: rgba(255,255,255,0.04); padding: 0.45rem 0.7rem; text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 400; }
-  td { padding: 0.4rem 0.7rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
-  td:first-child { color: var(--accent); }
-
-  code { background: rgba(0,229,176,0.08); color: var(--accent); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.66rem; }
-
-  .tag { display: inline-block; padding: 0.12rem 0.4rem; border-radius: 4px; font-size: 0.6rem; margin: 0.1rem; }
-  .tag-g { background: rgba(0,229,176,0.1); color: var(--accent); }
-  .tag-p { background: rgba(124,106,247,0.1); color: var(--accent2); }
-  .tag-r { background: rgba(255,107,107,0.1); color: var(--accent3); }
-
-  /* TOAST */
-  .toast {
-    position: fixed;
-    bottom: 1.5rem;
-    left: 50%;
-    transform: translateX(-50%) translateY(60px);
-    background: var(--accent);
-    color: #000;
-    font-size: 0.7rem;
-    padding: 0.55rem 1.2rem;
-    border-radius: 20px;
-    font-family: 'Unbounded', sans-serif;
-    transition: transform 0.3s;
-    z-index: 200;
-    pointer-events: none;
-  }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-
-  /* FOOTER */
-  .footer {
-    text-align: center;
-    margin-top: 2rem;
-    color: var(--muted);
-    font-size: 0.68rem;
-    line-height: 2;
-    max-width: 1100px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .footer strong { color: var(--accent); }
+@media (max-width: 768px) { .main { padding-top: 145px; } }
 </style>
 </head>
 <body>
 
-<!-- STICKY NAV -->
-<nav class="nav">
-  <div class="nav-inner">
-    <span class="nav-logo">Go Конспект</span>
-    <button class="nav-btn active" onclick="navToggle('s0', this)">📌 Основа</button>
-    <button class="nav-btn" onclick="navToggle('s1', this)">📦 Переменные</button>
-    <button class="nav-btn" onclick="navToggle('s2', this)">🚦 Условия</button>
-    <button class="nav-btn" onclick="navToggle('s3', this)">🔄 Циклы</button>
-    <button class="nav-btn" onclick="navToggle('s4', this)">🔧 Функции</button>
-    <button class="nav-btn" onclick="navToggle('s5', this)">📋 Слайсы</button>
-    <button class="nav-btn" onclick="navToggle('s6', this)">🗺️ Map</button>
-    <button class="nav-btn" onclick="navToggle('s7', this)">🏗️ Структуры</button>
-    <button class="nav-btn" onclick="navToggle('s8', this)">🔌 Интерфейсы</button>
-    <button class="nav-btn" onclick="navToggle('s9', this)">❌ Ошибки</button>
-    <button class="nav-btn" onclick="navToggle('s10', this)">🌿 Git</button>
-    <button class="nav-btn" onclick="navToggle('s11', this)">🐙 GitHub</button>
-    <button class="nav-btn" onclick="navToggle('s12', this)">🐧 Linux</button>
-    <button class="nav-btn" onclick="navToggle('s13', this)">🐳 Docker</button>
-    <button class="nav-btn" onclick="navToggle('s14', this)">🌐 HTTP</button>
-    <div class="nav-controls">
-      <button class="ctrl-btn" onclick="expandAll()">развернуть все</button>
-      <button class="ctrl-btn" onclick="collapseAll()">свернуть все</button>
+<div class="bg-mesh"></div>
+
+<div class="nav-container">
+  <nav class="nav">
+    <div class="nav-top">
+      <a class="nav-logo" href="#">
+        <span class="nav-logo-badge">Go</span>
+        <span>Конспект <span>Дмитрий</span></span>
+      </a>
+      <div class="nav-controls">
+        <button class="ctrl-btn" id="edit-toggle-btn" onclick="toggleEditMode()">✏️ Редактировать</button>
+        <button class="ctrl-btn add-topic require-edit" onclick="createNewSection()">➕ Тема</button>
+        <button class="ctrl-btn" onclick="expandAll()">📂 Все</button>
+        <button class="ctrl-btn" onclick="collapseAll()">📁 Свернуть</button>
+        <button class="ctrl-btn save require-edit" onclick="doExport()">💾 Сохранить</button>
+      </div>
     </div>
-  </div>
-</nav>
+    <div class="nav-strip" id="nav-strip-container">
+      </div>
+  </nav>
+</div>
 
 <div class="main">
-
-  <!-- HEADER -->
   <div class="header">
-    <div class="header-label" id="header-label">конспект · все блоки</div>
-    <h1>Go <span>с нуля</span></h1>
-    <p>Все пройденные темы с примерами кода — Дмитрий</p>
-    <div class="pills">
-      <span class="pill pill-done" onclick="filterBlock('all')" style="cursor:pointer">🗂️ Все блоки</span>
-      <span class="pill pill-done" onclick="filterBlock('1')" style="cursor:pointer">✅ Блок 1 — Основы Go</span>
-      <span class="pill pill-done" onclick="filterBlock('2')" style="cursor:pointer">✅ Блок 2 — Инструменты</span>
-      <span class="pill pill-next" onclick="filterBlock('3')" style="cursor:pointer">⏳ Блок 3 — HTTP и API</span>
-      <span class="pill pill-todo">⬜ Блок 4 — Базы данных</span>
-      <span class="pill pill-todo">⬜ Блок 5 — Продвинутый Go</span>
-      <span class="pill pill-todo">⬜ Блок 6 — Проект</span>
-    </div>
-  </div>
-
-  <!-- SECTION 0: ОСНОВА -->
-  <div class="section" id="s0" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">📌</span>
-      <span class="section-num">ОСНОВА</span>
-      <span class="section-title">Шаблон любой программы</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ШАБЛОН</span>
-            <span class="card-title">Структура файла</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Каждый Go файл начинается одинаково.</p>
-            <div class="code-wrap">
-              <pre><span class="kw">package</span> main
-
-<span class="kw">import</span> <span class="str">"fmt"</span>
-
-<span class="kw">func</span> <span class="fn">main</span>() {
-    fmt.<span class="fn">Println</span>(<span class="str">"Привет, Go!"</span>)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule">
-              <code>package main</code> — точка входа<br>
-              <code>import "fmt"</code> — подключаем вывод<br>
-              <code>func main()</code> — Go запускает отсюда
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ТЕРМИНАЛ</span>
-            <span class="card-title">Запуск программы</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm"># Перейти в папку с кодом</span>
-cd ~/Desktop/claude
-
-<span class="cm"># Запустить программу</span>
-go run main.go
-
-<span class="cm"># Посмотреть файлы в папке</span>
-ls</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule tip">Перед запуском убедись что ты в папке с файлом!</div>
-          </div>
-        </div>
+    <div class="header-label" id="current-filter-label">Конспект · Все блоки</div>
+    <h1>Изучение <span>Go</span></h1>
+    <p>Режим просмотра. Нажмите «Редактировать» вверху для внесения изменений.</p>
+    <div class="pills" id="pills-container">
       </div>
-    </div>
   </div>
 
-  <!-- SECTION 1: ПЕРЕМЕННЫЕ -->
-  <div class="section" id="s1" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">📦</span>
-      <span class="section-num">УР. 2</span>
-      <span class="section-title">Переменные и типы данных</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ПЕРЕМЕННЫЕ</span>
-            <span class="card-title">var и :=</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Переменная — коробка с именем. Внутри хранится значение.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// Длинный способ</span>
-<span class="kw">var</span> имя <span class="tp">string</span> = <span class="str">"Дмитрий"</span>
-<span class="kw">var</span> возраст <span class="tp">int</span> = <span class="num">25</span>
-<span class="kw">var</span> активен <span class="tp">bool</span> = <span class="kw">true</span>
-
-<span class="cm">// Короткий способ — используй чаще!</span>
-имя := <span class="str">"Дмитрий"</span>
-возраст := <span class="num">25</span>
-активен := <span class="kw">true</span>
-
-<span class="cm">// var без значения — заполним позже</span>
-<span class="kw">var</span> результат <span class="tp">int</span>
-результат = <span class="num">42</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule warn">"25" — текст, математика не работает!<br>25 — число. Разница важна!</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ТИПЫ</span>
-            <span class="card-title">string · int · bool</span>
-          </div>
-          <div class="card-body">
-            <div class="table-wrap">
-              <table>
-                <tr><th>Тип</th><th>Что хранит</th><th>Пример</th></tr>
-                <tr><td>string</td><td>текст</td><td>"Дмитрий"</td></tr>
-                <tr><td>int</td><td>целое число</td><td>25</td></tr>
-                <tr><td>bool</td><td>правда/ложь</td><td>true / false</td></tr>
-              </table>
-            </div>
-            <div class="rule" style="margin-top:0.8rem">
-              <span class="tag tag-g">string</span> всегда в кавычках " "<br>
-              <span class="tag tag-p">int</span> без кавычек<br>
-              <span class="tag tag-r">bool</span> только true или false
-            </div>
-            <div class="code-wrap" style="margin-top:0.8rem">
-              <pre><span class="cm">// Print vs Println</span>
-fmt.<span class="fn">Print</span>(<span class="str">"Привет"</span>)    <span class="cm">// без переноса</span>
-fmt.<span class="fn">Println</span>(<span class="str">"Привет"</span>) <span class="cm">// с переносом строки</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 2: УСЛОВИЯ -->
-  <div class="section" id="s2" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🚦</span>
-      <span class="section-num">УР. 3</span>
-      <span class="section-title">Условия</span>
-      <span class="section-badge">1 карточка</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">УСЛОВИЯ</span>
-            <span class="card-title">if / else if / else</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Проверяет условия сверху вниз — останавливается на первом верном.</p>
-            <div class="code-wrap">
-              <pre><span class="kw">if</span> возраст >= <span class="num">18</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Взрослый"</span>)
-} <span class="kw">else if</span> возраст >= <span class="num">12</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Подросток"</span>)
-} <span class="kw">else</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Ребёнок"</span>)
-}
-
-<span class="cm">// Пример с паролем</span>
-<span class="kw">if</span> пароль != <span class="str">"1234"</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Неверный пароль!"</span>)
-} <span class="kw">else</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Добро пожаловать!"</span>)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Знак</th><th>Значение</th></tr>
-                <tr><td>==</td><td>равно</td></tr>
-                <tr><td>!=</td><td>не равно (! = НЕ)</td></tr>
-                <tr><td>&gt;</td><td>больше</td></tr>
-                <tr><td>&lt;</td><td>меньше</td></tr>
-                <tr><td>&gt;=</td><td>больше или равно</td></tr>
-                <tr><td>&lt;=</td><td>меньше или равно</td></tr>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 3: ЦИКЛЫ -->
-  <div class="section" id="s3" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🔄</span>
-      <span class="section-num">УР. 4</span>
-      <span class="section-title">Циклы</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ЦИКЛ</span>
-            <span class="card-title">for — три части</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">В Go один вид цикла — for. Повторяет код нужное количество раз.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// Обычный цикл от 1 до 5</span>
-<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">5</span>; i++ {
-    fmt.<span class="fn">Println</span>(i)
-}
-
-<span class="cm">// Шаг по 5: 5, 10, 15, 20, 25</span>
-<span class="kw">for</span> i := <span class="num">5</span>; i <= <span class="num">25</span>; i += <span class="num">5</span> {
-    fmt.<span class="fn">Println</span>(i)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule tip">
-              <code>i := 1</code> — откуда начать<br>
-              <code>i &lt;= 5</code> — когда остановиться<br>
-              <code>i++</code> — прибавить 1 каждый шаг
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">УПРАВЛЕНИЕ</span>
-            <span class="card-title">break / continue / %</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// break — остановить цикл полностью</span>
-<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">10</span>; i++ {
-    <span class="kw">if</span> i == <span class="num">5</span> { <span class="kw">break</span> }
-    fmt.<span class="fn">Println</span>(i) <span class="cm">// 1 2 3 4</span>
-}
-
-<span class="cm">// continue — пропустить шаг</span>
-<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">5</span>; i++ {
-    <span class="kw">if</span> i == <span class="num">3</span> { <span class="kw">continue</span> }
-    fmt.<span class="fn">Println</span>(i) <span class="cm">// 1 2 4 5</span>
-}
-
-<span class="cm">// % остаток — только чётные числа</span>
-<span class="kw">for</span> i := <span class="num">1</span>; i <= <span class="num">10</span>; i++ {
-    <span class="kw">if</span> i%<span class="num">2</span> != <span class="num">0</span> { <span class="kw">continue</span> }
-    fmt.<span class="fn">Println</span>(i) <span class="cm">// 2 4 6 8 10</span>
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule warn">break срабатывает ДО вывода! i==5 с break → выведет 1 2 3 4</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 4: ФУНКЦИИ -->
-  <div class="section" id="s4" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🔧</span>
-      <span class="section-num">УР. 5</span>
-      <span class="section-title">Функции</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ФУНКЦИИ</span>
-            <span class="card-title">Создание и вызов</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Пишешь один раз — вызываешь сколько угодно.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// Без возврата</span>
-<span class="kw">func</span> <span class="fn">приветствие</span>(имя <span class="tp">string</span>) {
-    fmt.<span class="fn">Println</span>(<span class="str">"Привет,"</span>, имя)
-}
-
-<span class="cm">// Два параметра</span>
-<span class="kw">func</span> <span class="fn">инфо</span>(имя <span class="tp">string</span>, возраст <span class="tp">int</span>) {
-    fmt.<span class="fn">Println</span>(имя, <span class="str">"возраст:"</span>, возраст)
-}
-
-<span class="cm">// Вызов</span>
-<span class="fn">приветствие</span>(<span class="str">"Дмитрий"</span>)
-<span class="fn">инфо</span>(<span class="str">"Алибек"</span>, <span class="num">30</span>)</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">RETURN</span>
-            <span class="card-title">Возврат значения</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// Возвращает число</span>
-<span class="kw">func</span> <span class="fn">сложить</span>(а <span class="tp">int</span>, б <span class="tp">int</span>) <span class="tp">int</span> {
-    <span class="kw">return</span> а + б
-}
-
-<span class="cm">// Возвращает bool</span>
-<span class="kw">func</span> <span class="fn">isAdult</span>(возраст <span class="tp">int</span>) <span class="tp">bool</span> {
-    <span class="kw">if</span> возраст >= <span class="num">18</span> {
-        <span class="kw">return</span> <span class="kw">true</span>
-    }
-    <span class="kw">return</span> <span class="kw">false</span>
-}
-
-<span class="cm">// Использование</span>
-результат := <span class="fn">сложить</span>(<span class="num">5</span>, <span class="num">3</span>)
-fmt.<span class="fn">Println</span>(результат) <span class="cm">// 8</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule">
-              return числа → пиши <code>int</code><br>
-              return текста → пиши <code>string</code><br>
-              return true/false → пиши <code>bool</code><br>
-              нет return → нет типа
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 5: СЛАЙСЫ -->
-  <div class="section" id="s5" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">📋</span>
-      <span class="section-num">УР. 6</span>
-      <span class="section-title">Массивы и слайсы</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">СЛАЙС</span>
-            <span class="card-title">Создание и операции</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// Массив — фиксированный [5]</span>
-оценки := [<span class="num">5</span>]<span class="tp">int</span>{<span class="num">5</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">3</span>, <span class="num">4</span>}
-
-<span class="cm">// Слайс — гибкий []</span>
-оценки := []<span class="tp">int</span>{<span class="num">5</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">3</span>, <span class="num">4</span>}
-
-<span class="cm">// Индексы с НУЛЯ!</span>
-fmt.<span class="fn">Println</span>(оценки[<span class="num">0</span>]) <span class="cm">// 5 — первый</span>
-fmt.<span class="fn">Println</span>(оценки[<span class="num">2</span>]) <span class="cm">// 5 — третий</span>
-
-<span class="cm">// Добавить элемент</span>
-оценки = <span class="fn">append</span>(оценки, <span class="num">5</span>)
-
-<span class="cm">// Длина</span>
-fmt.<span class="fn">Println</span>(<span class="fn">len</span>(оценки))</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule warn">Индексы с нуля! [0]=первый, [1]=второй</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ПЕРЕБОР</span>
-            <span class="card-title">for range</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// С индексом</span>
-<span class="kw">for</span> i, значение := <span class="kw">range</span> оценки {
-    fmt.<span class="fn">Println</span>(i, значение)
-}
-
-<span class="cm">// Без индекса — пиши _</span>
-<span class="kw">for</span> _, значение := <span class="kw">range</span> оценки {
-    fmt.<span class="fn">Println</span>(значение)
-}
-
-<span class="cm">// Пример: приветствие списка</span>
-имена := []<span class="tp">string</span>{<span class="str">"Дмитрий"</span>, <span class="str">"Алибек"</span>}
-<span class="kw">for</span> _, имя := <span class="kw">range</span> имена {
-    fmt.<span class="fn">Println</span>(<span class="str">"Привет,"</span>, имя)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule purple">_ = "этот параметр не нужен, игнорируй"</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 6: MAP -->
-  <div class="section" id="s6" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🗺️</span>
-      <span class="section-num">УР. 7</span>
-      <span class="section-title">Map</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">MAP</span>
-            <span class="card-title">Создание и операции</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Хранит данные по ключу. Слайс ищет по номеру — Map по имени.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// map[тип_ключа]тип_значения</span>
-телефоны := <span class="kw">map</span>[<span class="tp">string</span>]<span class="tp">string</span>{
-    <span class="str">"Дмитрий"</span>: <span class="str">"375291234567"</span>,
-    <span class="str">"Алибек"</span>:  <span class="str">"375291234568"</span>,
-}
-
-<span class="cm">// Получить значение</span>
-fmt.<span class="fn">Println</span>(телефоны[<span class="str">"Дмитрий"</span>])
-
-<span class="cm">// Добавить / изменить</span>
-телефоны[<span class="str">"Иван"</span>] = <span class="str">"375255290996"</span>
-
-<span class="cm">// Удалить</span>
-<span class="fn">delete</span>(телефоны, <span class="str">"Саша"</span>)
-
-<span class="cm">// Перебрать все</span>
-<span class="kw">for</span> ключ, значение := <span class="kw">range</span> телефоны {
-    fmt.<span class="fn">Println</span>(ключ, <span class="str">"->"</span>, значение)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">MAP</span>
-            <span class="card-title">Проверка и сравнение</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// Проверить есть ли ключ</span>
-номер, есть := телефоны[<span class="str">"Дмитрий"</span>]
-<span class="kw">if</span> есть {
-    fmt.<span class="fn">Println</span>(<span class="str">"Найден:"</span>, номер)
-} <span class="kw">else</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Не найден"</span>)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <tr><th></th><th>Слайс</th><th>Map</th></tr>
-                <tr><td>Поиск</td><td>по [0] [1]</td><td>по ["имя"]</td></tr>
-                <tr><td>Добавить</td><td>append()</td><td>map["к"] = "з"</td></tr>
-                <tr><td>Удалить</td><td>—</td><td>delete()</td></tr>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 7: СТРУКТУРЫ -->
-  <div class="section" id="s7" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🏗️</span>
-      <span class="section-num">УР. 8</span>
-      <span class="section-title">Структуры</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">STRUCT</span>
-            <span class="card-title">Создание и использование</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Коробка с несколькими полями разных типов. Как анкета.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// Тип структуры — с Большой буквы!</span>
-<span class="kw">type</span> <span class="tp">User</span> <span class="kw">struct</span> {
-    Name <span class="tp">string</span>
-    Age  <span class="tp">int</span>
-    City <span class="tp">string</span>
-}
-
-<span class="cm">// Переменная — с маленькой</span>
-user := <span class="tp">User</span>{
-    Name: <span class="str">"Дмитрий"</span>,
-    Age:  <span class="num">25</span>,
-    City: <span class="str">"Гродно"</span>,
-}
-
-<span class="cm">// Получить поле — через точку</span>
-fmt.<span class="fn">Println</span>(user.Name)
-
-<span class="cm">// Изменить поле</span>
-user.Age = <span class="num">26</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule tip">
-              Тип/поля → с Большой (User, Name)<br>
-              Переменные → с маленькой (user)<br>
-              Доступ → через точку user.Name
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">СЛАЙС</span>
-            <span class="card-title">Слайс структур</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="kw">type</span> <span class="tp">Product</span> <span class="kw">struct</span> {
-    Name  <span class="tp">string</span>
-    Price <span class="tp">int</span>
-}
-
-products := []<span class="tp">Product</span>{
-    {Name: <span class="str">"Телефон"</span>, Price: <span class="num">500</span>},
-    {Name: <span class="str">"Ноутбук"</span>, Price: <span class="num">1200</span>},
-    {Name: <span class="str">"Наушники"</span>, Price: <span class="num">150</span>},
-}
-
-<span class="kw">for</span> _, p := <span class="kw">range</span> products {
-    fmt.<span class="fn">Println</span>(p.Name, <span class="str">"->"</span>, p.Price)
-}</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 8: ИНТЕРФЕЙСЫ -->
-  <div class="section" id="s8" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🔌</span>
-      <span class="section-num">УР. 9</span>
-      <span class="section-title">Интерфейсы</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">INTERFACE</span>
-            <span class="card-title">Контракт</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Позволяет одной функции работать с разными типами.</p>
-            <div class="code-wrap">
-              <pre><span class="cm">// Интерфейс — контракт</span>
-<span class="kw">type</span> <span class="tp">Animal</span> <span class="kw">interface</span> {
-    <span class="fn">Sound</span>() <span class="tp">string</span>
-}
-
-<span class="cm">// Структуры</span>
-<span class="kw">type</span> <span class="tp">Dog</span> <span class="kw">struct</span> { Name <span class="tp">string</span> }
-<span class="kw">type</span> <span class="tp">Cat</span> <span class="kw">struct</span> { Name <span class="tp">string</span> }
-
-<span class="cm">// Методы</span>
-<span class="kw">func</span> (d <span class="tp">Dog</span>) <span class="fn">Sound</span>() <span class="tp">string</span> { <span class="kw">return</span> <span class="str">"Гав!"</span> }
-<span class="kw">func</span> (c <span class="tp">Cat</span>) <span class="fn">Sound</span>() <span class="tp">string</span> { <span class="kw">return</span> <span class="str">"Мяу!"</span> }
-
-<span class="cm">// Одна функция для всех Animal</span>
-<span class="kw">func</span> <span class="fn">makeSound</span>(a <span class="tp">Animal</span>) {
-    fmt.<span class="fn">Println</span>(a.<span class="fn">Sound</span>())
-}
-
-<span class="fn">makeSound</span>(<span class="tp">Dog</span>{Name: <span class="str">"Рекс"</span>})
-<span class="fn">makeSound</span>(<span class="tp">Cat</span>{Name: <span class="str">"Мурзик"</span>})</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule purple">
-              Dog умеет Sound → Dog является Animal ✅<br>
-              Cat умеет Sound → Cat является Animal ✅
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">МЕТОД</span>
-            <span class="card-title">Функция с владельцем</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm">// Обычная функция</span>
-<span class="kw">func</span> <span class="fn">Sound</span>() <span class="tp">string</span> { ... }
-
-<span class="cm">// Метод — привязан к структуре</span>
-<span class="kw">func</span> (d <span class="tp">Dog</span>) <span class="fn">Sound</span>() <span class="tp">string</span> {
-    <span class="kw">return</span> <span class="str">"Гав! Я "</span> + d.Name
-}
-
-<span class="cm">// d — короткое имя для Dog
-// По традиции — первая буква типа:
-// Dog → d, Cat → c, User → u</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule tip">
-              (d Dog) → функция принадлежит Dog<br>
-              d.Name → обращаемся к полю через d
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 9: ОШИБКИ -->
-  <div class="section" id="s9" data-block="1">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">❌</span>
-      <span class="section-num">УР. 10</span>
-      <span class="section-title">Ошибки</span>
-      <span class="section-badge">1 карточка</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">ERROR</span>
-            <span class="card-title">Обработка ошибок</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Функции возвращают два значения — результат и ошибку. Всегда проверяй!</p>
-            <div class="code-wrap">
-              <pre><span class="kw">import</span> (
-    <span class="str">"errors"</span>
-    <span class="str">"fmt"</span>
-)
-
-<span class="cm">// Функция с двумя возвратами</span>
-<span class="kw">func</span> <span class="fn">разделить</span>(а <span class="tp">int</span>, б <span class="tp">int</span>) (<span class="tp">int</span>, <span class="tp">error</span>) {
-    <span class="kw">if</span> б == <span class="num">0</span> {
-        <span class="kw">return</span> <span class="num">0</span>, errors.<span class="fn">New</span>(<span class="str">"нельзя на ноль!"</span>)
-    }
-    <span class="kw">return</span> а / б, <span class="kw">nil</span>
-}
-
-<span class="cm">// Всегда проверяй ошибку!</span>
-результат, ошибка := <span class="fn">разделить</span>(<span class="num">10</span>, <span class="num">2</span>)
-<span class="kw">if</span> ошибка != <span class="kw">nil</span> {
-    fmt.<span class="fn">Println</span>(<span class="str">"Ошибка:"</span>, ошибка)
-    <span class="kw">return</span>
-}
-fmt.<span class="fn">Println</span>(результат) <span class="cm">// 5</span></pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule">
-              <code>nil</code> — "ничего", ошибки нет ✅<br>
-              <code>ошибка != nil</code> — ошибка есть ❌<br>
-              <code>errors.New("текст")</code> — создать ошибку
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 10: GIT -->
-  <div class="section" id="s10" data-block="2">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🌿</span>
-      <span class="section-num">БЛ. 2 · УР. 1</span>
-      <span class="section-title">Git — система контроля версий</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">GIT</span>
-            <span class="card-title">Основные команды</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Git — машина времени для кода. Сохраняет историю всех изменений.</p>
-            <div class="code-wrap">
-              <pre><span class="cm"># Проверить версию Git</span>
-git --version
-
-<span class="cm"># Настроить имя и email (один раз)</span>
-git config --global user.name "Dmitry"
-git config --global user.email "email@gmail.com"
-
-<span class="cm"># Создать репозиторий в папке</span>
-git init
-
-<span class="cm"># Посмотреть что изменилось</span>
-git status
-
-<span class="cm"># Добавить все файлы</span>
-git add .
-
-<span class="cm"># Сохранить с описанием</span>
-git commit -m "описание что изменил"
-
-<span class="cm"># Посмотреть историю коммитов</span>
-git log --oneline
-
-<span class="cm"># Вернуться к старой версии</span>
-git checkout ID_коммита
-
-<span class="cm"># Вернуться к последней версии</span>
-git checkout main</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">GIT</span>
-            <span class="card-title">Как работает коммит</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Три шага которые повторяешь каждый раз когда делаешь изменения.</p>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Команда</th><th>Что делает</th></tr>
-                <tr><td>git init</td><td>Создать репозиторий</td></tr>
-                <tr><td>git status</td><td>Что изменилось</td></tr>
-                <tr><td>git add .</td><td>Добавить все файлы</td></tr>
-                <tr><td>git commit -m ""</td><td>Сохранить версию</td></tr>
-                <tr><td>git log --oneline</td><td>История коммитов</td></tr>
-                <tr><td>git checkout ID</td><td>Вернуться к версии</td></tr>
-                <tr><td>git checkout main</td><td>Вернуться к последней</td></tr>
-              </table>
-            </div>
-            <div class="rule tip" style="margin-top:0.8rem">
-              Пиши понятные описания! "исправил ошибку авторизации" — хорошо. "изменил код" — плохо.
-            </div>
-            <div class="rule warn" style="margin-top:0.5rem">
-              Папка .git — не удаляй! В ней хранится вся история.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 11: GITHUB -->
-  <div class="section" id="s11" data-block="2">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🐙</span>
-      <span class="section-num">БЛ. 2 · УР. 2</span>
-      <span class="section-title">GitHub — код в интернете</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">GITHUB</span>
-            <span class="card-title">Подключение и загрузка</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.</p>
-            <div class="code-wrap">
-              <pre><span class="cm"># 1. Подключить локальный код к GitHub</span>
-git remote add origin https://github.com/username/repo.git
-
-<span class="cm"># 2. Загрузить код первый раз</span>
-git push -u origin main
-
-<span class="cm"># 3. Каждый раз после изменений</span>
-git add .
-git commit -m "что изменил"
-git push</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule">
-              <code>remote add origin</code> — говорим куда загружать<br>
-              <code>git push</code> — загружаем код на GitHub<br>
-              <code>-u origin main</code> — только при первом push
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">GITHUB</span>
-            <span class="card-title">Git vs GitHub</span>
-          </div>
-          <div class="card-body">
-            <div class="table-wrap">
-              <table>
-                <tr><th></th><th>Git</th><th>GitHub</th></tr>
-                <tr><td>Что это</td><td>программа на компьютере</td><td>сайт в интернете</td></tr>
-                <tr><td>Где хранит</td><td>локально на Mac</td><td>в облаке</td></tr>
-                <tr><td>Зачем</td><td>история версий</td><td>резервная копия + портфолио</td></tr>
-              </table>
-            </div>
-            <div class="rule purple" style="margin-top:0.8rem">
-              Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼
-            </div>
-            <div class="rule tip" style="margin-top:0.5rem">
-              Твой репозиторий: github.com/dmitrytretyak19/go-learning
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-   <!-- SECTION 12: LINUX -->
-  <div class="section" id="s12" data-block="2">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🐧</span>
-      <span class="section-num">БЛ. 2 · УР. 3</span>
-      <span class="section-title">Linux и терминал</span>
-      <span class="section-badge">2 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">LINUX</span>
-            <span class="card-title">Основные команды</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.</p>
-            <div class="code-wrap">
-              <pre><span class="cm"># Где я нахожусь?</span>
-pwd
- 
-<span class="cm"># Список файлов в папке</span>
-ls
- 
-<span class="cm"># Список со скрытыми файлами</span>
-ls -la
- 
-<span class="cm"># Перейти в папку</span>
-cd папка
-cd ~/Desktop/claude
- 
-<span class="cm"># Вернуться на уровень выше</span>
-cd ..
- 
-<span class="cm"># Перейти домой</span>
-cd ~
- 
-<span class="cm"># Создать папку</span>
-mkdir имя-папки
- 
-<span class="cm"># Создать пустой файл</span>
-touch имя-файла.txt
- 
-<span class="cm"># Показать содержимое файла</span>
-cat файл.txt
- 
-<span class="cm"># Удалить файл</span>
-rm файл.txt
- 
-<span class="cm"># Удалить папку со всем содержимым</span>
-rm -rf папка
- 
-<span class="cm"># Очистить терминал</span>
-clear
- 
-<span class="cm"># Открыть файл в VSCode</span>
-code файл.go</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">LINUX</span>
-            <span class="card-title">Шпаргалка команд</span>
-          </div>
-          <div class="card-body">
-            <div class="table-wrap">
-              <table>
-                <tr><th>Команда</th><th>Что делает</th></tr>
-                <tr><td>pwd</td><td>Показать текущую папку</td></tr>
-                <tr><td>ls</td><td>Список файлов</td></tr>
-                <tr><td>ls -la</td><td>Список со скрытыми файлами</td></tr>
-                <tr><td>cd папка</td><td>Перейти в папку</td></tr>
-                <tr><td>cd ..</td><td>Вернуться назад</td></tr>
-                <tr><td>cd ~</td><td>Перейти домой</td></tr>
-                <tr><td>mkdir имя</td><td>Создать папку</td></tr>
-                <tr><td>touch файл</td><td>Создать файл</td></tr>
-                <tr><td>cat файл</td><td>Показать содержимое</td></tr>
-                <tr><td>rm файл</td><td>Удалить файл</td></tr>
-                <tr><td>rm -rf папка</td><td>Удалить папку</td></tr>
-                <tr><td>clear</td><td>Очистить терминал</td></tr>
-              </table>
-            </div>
-            <div class="rule warn" style="margin-top:0.8rem">
-              ⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
- 
-  <!-- SECTION 13: DOCKER -->
-  <div class="section" id="s13" data-block="2">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🐳</span>
-      <span class="section-num">БЛ. 2 · УР. 4</span>
-      <span class="section-title">Docker — контейнеризация</span>
-      <span class="section-badge">3 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">DOCKER</span>
-            <span class="card-title">Что такое Docker</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Docker упаковывает твою программу вместе со всем что ей нужно — Go, библиотеки, настройки — в один контейнер. Работает одинаково везде.</p>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Понятие</th><th>Что это</th><th>Аналогия</th></tr>
-                <tr><td>Image (образ)</td><td>шаблон контейнера</td><td>рецепт блюда</td></tr>
-                <tr><td>Container</td><td>запущенный образ</td><td>готовое блюдо</td></tr>
-                <tr><td>Dockerfile</td><td>инструкция сборки</td><td>список ингредиентов</td></tr>
-                <tr><td>Docker Hub</td><td>библиотека образов</td><td>магазин рецептов</td></tr>
-              </table>
-            </div>
-            <div class="rule" style="margin-top:0.8rem">
-              Порядок работы:<br>
-              1. Написал Dockerfile (рецепт)<br>
-              2. docker build (приготовил)<br>
-              3. docker run (запустил)
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">DOCKERFILE</span>
-            <span class="card-title">Файл инструкций</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Dockerfile — файл без расширения в корне проекта. Содержит инструкции как собрать образ.</p>
-            <div class="code-wrap">
-              <pre><span class="cm"># Базовый образ — на основе чего строим</span>
-FROM golang:1.22
- 
-<span class="cm"># Рабочая папка внутри контейнера</span>
-WORKDIR /app
- 
-<span class="cm"># Копируем весь код внутрь контейнера</span>
-COPY . .
- 
-<span class="cm"># Команда которая запустится при старте</span>
-CMD ["go", "run", "main.go"]</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule">
-              <code>FROM</code> — на основе какого образа строим<br>
-              <code>WORKDIR</code> — рабочая папка в контейнере<br>
-              <code>COPY . .</code> — копируем код внутрь<br>
-              <code>CMD</code> — команда запуска
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">КОМАНДЫ</span>
-            <span class="card-title">Основные команды Docker</span>
-          </div>
-          <div class="card-body">
-            <div class="code-wrap">
-              <pre><span class="cm"># Проверить версию Docker</span>
-docker --version
- 
-<span class="cm"># Запустить тестовый контейнер</span>
-docker run hello-world
- 
-<span class="cm"># Собрать образ из Dockerfile
-# -t = tag (название образа)
-# . = использовать текущую папку</span>
-docker build -t my-go-app .
- 
-<span class="cm"># Запустить контейнер</span>
-docker run my-go-app
- 
-<span class="cm"># Список всех образов</span>
-docker images
- 
-<span class="cm"># Список запущенных контейнеров</span>
-docker ps
- 
-<span class="cm"># Список всех контейнеров</span>
-docker ps -a
- 
-<span class="cm"># Остановить контейнер</span>
-docker stop ID_контейнера
- 
-<span class="cm"># Удалить контейнер</span>
-docker rm ID_контейнера
- 
-<span class="cm"># Удалить образ</span>
-docker rmi my-go-app</pre>
-              <button class="copy-btn" onclick="copyCode(this)">копировать</button>
-            </div>
-            <div class="rule tip">
-              <code>-t название</code> даёт образу понятное имя вместо длинного ID типа sha256:bba8fd9c...
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
- 
-  <!-- SECTION 14: HTTP -->
-  <div class="section" id="s14" data-block="3">
-    <div class="section-header" onclick="toggleSection(this)">
-      <span class="section-icon">🌐</span>
-      <span class="section-num">БЛ. 3 · УР. 1</span>
-      <span class="section-title">Как работает HTTP</span>
-      <span class="section-badge">3 карточки</span>
-      <span class="chevron">▾</span>
-    </div>
-    <div class="section-body">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">HTTP</span>
-            <span class="card-title">Запрос и ответ</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">HTTP — протокол общения браузера с сервером. Каждый раз когда открываешь сайт — браузер отправляет запрос, сервер отвечает.</p>
-            <div class="rule">
-              1. Браузер отправляет <strong>запрос (Request)</strong> на сервер<br>
-              2. Сервер обрабатывает запрос<br>
-              3. Сервер отправляет <strong>ответ (Response)</strong><br>
-              4. Браузер показывает результат
-            </div>
-            <div class="rule tip" style="margin-top:0.5rem">
-              URL = протокол + домен + путь<br>
-              <code>https://github.com/dmitrytretyak19</code><br>
-              https — протокол, github.com — домен, /dmitrytretyak19 — путь
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">МЕТОДЫ</span>
-            <span class="card-title">GET · POST · PUT · DELETE</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Метод говорит серверу что именно ты хочешь сделать с данными.</p>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Метод</th><th>Что делает</th><th>Пример</th></tr>
-                <tr><td>GET</td><td>Получить данные</td><td>Загрузить список пользователей</td></tr>
-                <tr><td>POST</td><td>Создать новое</td><td>Зарегистрировать пользователя</td></tr>
-                <tr><td>PUT</td><td>Обновить существующее</td><td>Изменить имя пользователя</td></tr>
-                <tr><td>DELETE</td><td>Удалить</td><td>Удалить пользователя</td></tr>
-              </table>
-            </div>
-            <div class="rule tip" style="margin-top:0.8rem">
-              Аналогия с рестораном:<br>
-              GET — "покажи меню"<br>
-              POST — "хочу заказать блюдо"<br>
-              PUT — "хочу изменить заказ"<br>
-              DELETE — "отмени заказ"
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-num">КОДЫ</span>
-            <span class="card-title">Коды ответов сервера</span>
-          </div>
-          <div class="card-body">
-            <p class="desc">Каждый ответ сервера содержит код — число которое говорит что произошло.</p>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Код</th><th>Значение</th></tr>
-                <tr><td>200</td><td>Всё хорошо ✅</td></tr>
-                <tr><td>201</td><td>Создано ✅</td></tr>
-                <tr><td>400</td><td>Плохой запрос — неверные данные ❌</td></tr>
-                <tr><td>401</td><td>Не авторизован — нужен логин ❌</td></tr>
-                <tr><td>404</td><td>Не найдено — страница не существует ❌</td></tr>
-                <tr><td>500</td><td>Ошибка сервера — что-то сломалось ❌</td></tr>
-              </table>
-            </div>
-            <div class="rule warn" style="margin-top:0.8rem">
-              2xx — успех · 4xx — ошибка клиента · 5xx — ошибка сервера
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div id="sections-container"></div>
 
   <div class="footer">
-    <strong>Блок 1 завершён ✅ · Блок 2 завершён ✅ · Блок 3 в процессе ⏳</strong><br>
-    Пройдено: HTTP основы · Следующий: Первый HTTP сервер на Go
+    <strong>Разработка архитектуры: iOS 26 Glassmorphism System Engine</strong><br>
+    Локальное сохранение данных активно. Карточки уплотнены для лучшей читаемости.
   </div>
- 
 </div>
- 
-<div class="toast" id="toast">Скопировано!</div>
- 
- 
+
+<div class="toast" id="toast_alert">Изменения сохранены!</div>
+
 <script>
-  const sectionBlock = {
-    s0:1, s1:1, s2:1, s3:1, s4:1, s5:1, s6:1, s7:1, s8:1, s9:1,
-    s10:2, s11:2, s12:2, s13:2,
-    s14:3,
-  };
+// ═══ GLOBAL IMMUTABLE STATE (UPDATED BY SELF-EXPORT REGEX) ═══
 
-  const blockLabels = {
-    '1': 'конспект · блок 1 — основы go',
-    '2': 'конспект · блок 2 — инструменты',
-    '3': 'конспект · блок 3 — http и api',
-    'all': 'конспект · все блоки',
-  };
-
-  function setLabel(block) {
-    const label = document.getElementById('header-label');
-    if (label) label.textContent = blockLabels[block] || 'конспект · все блоки';
+const BLOCKS = [
+  {
+    "id": "1",
+    "label": "🟢 Блок 1: Основы Go",
+    "colorClass": "pill-c0"
+  },
+  {
+    "id": "2",
+    "label": "🔵 Блок 2: Инструменты",
+    "colorClass": "pill-c1"
+  },
+  {
+    "id": "3",
+    "label": "🟣 Блок 3: HTTP и API",
+    "colorClass": "pill-c2"
   }
+]; // END_BLOCKS
 
-  function syncNavButtons() {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      const m = btn.getAttribute('onclick') && btn.getAttribute('onclick').match(/'(s\d+)'/);
-      if (!m) return;
-      const s = document.getElementById(m[1]);
-      btn.classList.toggle('active', s && s.style.display !== 'none' && !s.classList.contains('collapsed'));
+const DATA = [
+  {
+    "id": "s0", "icon": "📌", "num": "ОСНОВА", "title": "Шаблон любой программы", "block": "1", "collapsed": false,
+    "cards": [
+      { "title": "Структура файла", "desc": "Каждый Go файл начинается одинаково.", "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Привет, Go!\")\n}", "rule": "package main — точка входа\nimport \"fmt\" — подключаем вывод\nfunc main() — Go запускает отсюда", "ruleType": "normal" },
+      { "title": "Запуск программы", "desc": "Команды для терминала.", "code": "# Перейти в папку с кодом\ncd ~/Desktop/claude\n\n# Запустить программу\ngo run main.go\n\n# Посмотреть файлы в папке\nls", "rule": "Перед запуском убедись что ты в папке с файлом!", "ruleType": "tip" }
+    ]
+  },
+  {
+    "id": "s1", "icon": "📦", "num": "УР. 2", "title": "Переменные и типы данных", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "var и :=", "desc": "Переменная — коробка с именем. Внутри хранится значение.", "code": "// Длинный способ\nvar имя string = \"Дмитрий\"\nvar возраст int = 25\nvar активен bool = true\n\n// Короткий способ — используй чаще!\nимя := \"Дмитрий\"\nвозраст := 25\nактивен := true\n\n// var без значения — заполним позже\nvar результат int\nрезультат = 42", "rule": "\"25\" — текст, математика не работает!\n25 — число. Разница важна!", "ruleType": "warn" },
+      { "title": "string · int · bool", "desc": "<b>string</b> — текст (\"Дмитрий\")<br><b>int</b> — целое число (25)<br><b>bool</b> — правда/ложь (true/false)", "code": "// Print vs Println\nfmt.Print(\"Привет\")    // без переноса\nfmt.Println(\"Привет\") // с переносом строки", "rule": "string всегда в кавычках \" \"\nint без кавычек\nbool только true или false", "ruleType": "normal" }
+    ]
+  },
+  {
+    "id": "s2", "icon": "🚦", "num": "УР. 3", "title": "Условия", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "if / else if / else", "desc": "Проверяет условия сверху вниз — останавливается на первом верном.<br><br><b>Знаки:</b><br>== (равно), != (не равно)<br>> (больше), < (меньше)<br>>= (больше или равно)", "code": "if возраст >= 18 {\n    fmt.Println(\"Взрослый\")\n} else if возраст >= 12 {\n    fmt.Println(\"Подросток\")\n} else {\n    fmt.Println(\"Ребёнок\")\n}\n\n// Пример с паролем\nif пароль != \"1234\" {\n    fmt.Println(\"Неверный пароль!\")\n} else {\n    fmt.Println(\"Добро пожаловать!\")\n}", "rule": "!= означает НЕ равно (! = НЕ)", "ruleType": "normal" }
+    ]
+  },
+  {
+    "id": "s3", "icon": "🔄", "num": "УР. 4", "title": "Циклы", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "for — три части", "desc": "В Go один вид цикла — for. Повторяет код нужное количество раз.", "code": "// Обычный цикл от 1 до 5\nfor i := 1; i <= 5; i++ {\n    fmt.Println(i)\n}\n\n// Шаг по 5: 5, 10, 15, 20, 25\nfor i := 5; i <= 25; i += 5 {\n    fmt.Println(i)\n}", "rule": "i := 1 — откуда начать\ni <= 5 — когда остановиться\ni++ — прибавить 1 каждый шаг", "ruleType": "tip" },
+      { "title": "break / continue / %", "desc": "Управление ходом цикла.", "code": "// break — остановить цикл полностью\nfor i := 1; i <= 10; i++ {\n    if i == 5 { break }\n    fmt.Println(i) // 1 2 3 4\n}\n\n// continue — пропустить шаг\nfor i := 1; i <= 5; i++ {\n    if i == 3 { continue }\n    fmt.Println(i) // 1 2 4 5\n}\n\n// % остаток — только чётные числа\nfor i := 1; i <= 10; i++ {\n    if i%2 != 0 { continue }\n    fmt.Println(i) // 2 4 6 8 10\n}", "rule": "break срабатывает ДО вывода! i==5 с break → выведет 1 2 3 4", "ruleType": "warn" }
+    ]
+  },
+  {
+    "id": "s4", "icon": "🔧", "num": "УР. 5", "title": "Функции", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Создание и вызов", "desc": "Пишешь один раз — вызываешь сколько угодно.", "code": "// Без возврата\nfunc приветствие(имя string) {\n    fmt.Println(\"Привет,\", имя)\n}\n\n// Два параметра\nfunc инфо(имя string, возраст int) {\n    fmt.Println(имя, \"возраст:\", возраст)\n}\n\n// Вызов\nприветствие(\"Дмитрий\")\nинфо(\"Алибек\", 30)", "rule": "Типы параметров указываются после их имени (имя string).", "ruleType": "normal" },
+      { "title": "Возврат значения", "desc": "Использование return", "code": "// Возвращает число\nfunc сложить(а int, б int) int {\n    return а + б\n}\n\n// Возвращает bool\nfunc isAdult(возраст int) bool {\n    if возраст >= 18 {\n        return true\n    }\n    return false\n}\n\n// Использование\nрезультат := сложить(5, 3)\nfmt.Println(результат) // 8", "rule": "return числа → пиши int\nreturn текста → пиши string\nreturn true/false → пиши bool\nнет return → нет типа", "ruleType": "normal" }
+    ]
+  },
+  {
+    "id": "s5", "icon": "📋", "num": "УР. 6", "title": "Массивы и слайсы", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Создание и операции", "desc": "Слайсы гибкие, в отличие от фиксированных массивов.", "code": "// Массив — фиксированный [5]\nоценки := [5]int{5, 4, 5, 3, 4}\n\n// Слайс — гибкий []\nоценки := []int{5, 4, 5, 3, 4}\n\n// Индексы с НУЛЯ!\nfmt.Println(оценки[0]) // 5 — первый\nfmt.Println(оценки[2]) // 5 — третий\n\n// Добавить элемент\nоценки = append(оценки, 5)\n\n// Длина\nfmt.Println(len(оценки))", "rule": "Индексы с нуля! [0]=первый, [1]=второй", "ruleType": "warn" },
+      { "title": "for range", "desc": "Перебор элементов слайса", "code": "// С индексом\nfor i, значение := range оценки {\n    fmt.Println(i, значение)\n}\n\n// Без индекса — пиши _\nfor _, значение := range оценки {\n    fmt.Println(значение)\n}\n\n// Пример: приветствие списка\nимена := []string{\"Дмитрий\", \"Алибек\"}\nfor _, имя := range имена {\n    fmt.Println(\"Привет,\", имя)\n}", "rule": "_ = \"этот параметр не нужен, игнорируй\"", "ruleType": "purple" }
+    ]
+  },
+  {
+    "id": "s6", "icon": "🗺️", "num": "УР. 7", "title": "Map", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Создание и операции", "desc": "Хранит данные по ключу. Слайс ищет по номеру — Map по имени.", "code": "// map[тип_ключа]тип_значения\nтелефоны := map[string]string{\n    \"Дмитрий\": \"375291234567\",\n    \"Алибек\":  \"375291234568\",\n}\n\n// Получить значение\nfmt.Println(телефоны[\"Дмитрий\"])\n\n// Добавить / изменить\nтелефоны[\"Иван\"] = \"375255290996\"\n\n// Удалить\ndelete(телефоны, \"Саша\")\n\n// Перебрать все\nfor ключ, значение := range телефоны {\n    fmt.Println(ключ, \"->\", значение)\n}", "rule": "В отличие от массивов, Map не гарантирует порядок элементов при переборе.", "ruleType": "normal" },
+      { "title": "Проверка и сравнение", "desc": "<b>Слайс:</b> Поиск по [0], Добавить append()<br><b>Map:</b> Поиск по [\"имя\"], Добавить map[\"к\"]=\"з\", Удалить delete()", "code": "// Проверить есть ли ключ\nномер, есть := телефоны[\"Дмитрий\"]\nif есть {\n    fmt.Println(\"Найден:\", номер)\n} else {\n    fmt.Println(\"Не найден\")\n}", "rule": "Вторая переменная при доступе к Map (тут 'есть') — это bool, который говорит существует ли ключ.", "ruleType": "tip" }
+    ]
+  },
+  {
+    "id": "s7", "icon": "🏗️", "num": "УР. 8", "title": "Структуры", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Создание и использование", "desc": "Коробка с несколькими полями разных типов. Как анкета.", "code": "// Тип структуры — с Большой буквы!\ntype User struct {\n    Name string\n    Age  int\n    City string\n}\n\n// Переменная — с маленькой\nuser := User{\n    Name: \"Дмитрий\",\n    Age:  25,\n    City: \"Гродно\",\n}\n\n// Получить поле — через точку\nfmt.Println(user.Name)\n\n// Изменить поле\nuser.Age = 26", "rule": "Тип/поля → с Большой (User, Name)\nПеременные → с маленькой (user)\nДоступ → через точку user.Name", "ruleType": "tip" },
+      { "title": "Слайс структур", "desc": "Хранение списка объектов.", "code": "type Product struct {\n    Name  string\n    Price int\n}\n\nproducts := []Product{\n    {Name: \"Телефон\", Price: 500},\n    {Name: \"Ноутбук\", Price: 1200},\n    {Name: \"Наушники\", Price: 150},\n}\n\nfor _, p := range products {\n    fmt.Println(p.Name, \"->\", p.Price)\n}", "rule": "Очень частый паттерн в реальных приложениях (например, список товаров из базы данных).", "ruleType": "purple" }
+    ]
+  },
+  {
+    "id": "s8", "icon": "🔌", "num": "УР. 9", "title": "Интерфейсы", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Контракт", "desc": "Позволяет одной функции работать с разными типами.", "code": "// Интерфейс — контракт\ntype Animal interface {\n    Sound() string\n}\n\n// Структуры\ntype Dog struct { Name string }\ntype Cat struct { Name string }\n\n// Методы\nfunc (d Dog) Sound() string { return \"Гав!\" }\nfunc (c Cat) Sound() string { return \"Мяу!\" }\n\n// Одна функция для всех Animal\nfunc makeSound(a Animal) {\n    fmt.Println(a.Sound())\n}\n\nmakeSound(Dog{Name: \"Рекс\"})\nmakeSound(Cat{Name: \"Мурзик\"})", "rule": "Dog умеет Sound → Dog является Animal ✅\nCat умеет Sound → Cat является Animal ✅", "ruleType": "purple" },
+      { "title": "Функция с владельцем", "desc": "Методы привязаны к определенному типу (структуре).", "code": "// Обычная функция\nfunc Sound() string { ... }\n\n// Метод — привязан к структуре\nfunc (d Dog) Sound() string {\n    return \"Гав! Я \" + d.Name\n}\n\n// d — короткое имя для Dog\n// По традиции — первая буква типа:\n// Dog → d, Cat → c, User → u", "rule": "(d Dog) → функция принадлежит Dog\nd.Name → обращаемся к полю через d", "ruleType": "tip" }
+    ]
+  },
+  {
+    "id": "s9", "icon": "❌", "num": "УР. 10", "title": "Ошибки", "block": "1", "collapsed": true,
+    "cards": [
+      { "title": "Обработка ошибок", "desc": "Функции возвращают два значения — результат и ошибку. Всегда проверяй!", "code": "import (\n    \"errors\"\n    \"fmt\"\n)\n\n// Функция с двумя возвратами\nfunc разделить(а int, б int) (int, error) {\n    if б == 0 {\n        return 0, errors.New(\"нельзя на ноль!\")\n    }\n    return а / б, nil\n}\n\n// Всегда проверяй ошибку!\nрезультат, ошибка := разделить(10, 2)\nif ошибка != nil {\n    fmt.Println(\"Ошибка:\", ошибка)\n    return\n}\nfmt.Println(результат) // 5", "rule": "nil — \"ничего\", ошибки нет ✅\nошибка != nil — ошибка есть ❌\nerrors.New(\"текст\") — создать ошибку", "ruleType": "warn" }
+    ]
+  },
+  {
+    "id": "s10", "icon": "🌿", "num": "БЛ. 2 · УР. 1", "title": "Git — система контроля версий", "block": "2", "collapsed": true,
+    "cards": [
+      { "title": "Основные команды", "desc": "Git — машина времени для кода. Сохраняет историю всех изменений.", "code": "# Настроить имя и email (один раз)\ngit config --global user.name \"Dmitry\"\ngit config --global user.email \"email@gmail.com\"\n\n# Создать репозиторий в папке\ngit init\n\n# Сохранить с описанием\ngit add .\ngit commit -m \"описание что изменил\"\n\n# Посмотреть историю\ngit log --oneline\n\n# Вернуться к старой / последней версии\ngit checkout ID_коммита\ngit checkout main", "rule": "Папка .git — не удаляй! В ней хранится вся история.", "ruleType": "warn" },
+      { "title": "Как работает коммит", "desc": "Три шага которые повторяешь каждый раз: <code>git status</code> (что изменилось) -> <code>git add .</code> (добавить) -> <code>git commit -m \"...\"</code> (сохранить)", "code": "// Рекомендуется делать частые и мелкие коммиты\ngit add .\ngit commit -m \"добавил функцию расчета налогов\"\n\n// Плохой пример:\ngit commit -m \"сделал все\"", "rule": "Пиши понятные описания! \"исправил ошибку авторизации\" — хорошо. \"изменил код\" — плохо.", "ruleType": "tip" }
+    ]
+  },
+  {
+    "id": "s11", "icon": "🐙", "num": "БЛ. 2 · УР. 2", "title": "GitHub — код в интернете", "block": "2", "collapsed": true,
+    "cards": [
+      { "title": "Подключение и загрузка", "desc": "GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.", "code": "# 1. Подключить локальный код к GitHub\ngit remote add origin https://github.com/username/repo.git\n\n# 2. Загрузить код первый раз\ngit push -u origin main\n\n# 3. Каждый раз после изменений\ngit add .\ngit commit -m \"что изменил\"\ngit push", "rule": "remote add origin — говорим куда загружать\ngit push — загружаем код на GitHub\n-u origin main — только при первом push", "ruleType": "normal" },
+      { "title": "Git vs GitHub", "desc": "<b>Git:</b> программа на компьютере (локально на Mac), нужна для истории версий.<br><b>GitHub:</b> сайт в интернете (в облаке), нужен для бэкапа и портфолио.", "code": "// Твой репозиторий может выглядеть так:\n// https://github.com/dmitrytretyak19/go-learning\n\n// Команда для скачивания чужого кода:\ngit clone https://github.com/.../repo.git", "rule": "Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼", "ruleType": "purple" }
+    ]
+  },
+  {
+    "id": "s12", "icon": "🐧", "num": "БЛ. 2 · УР. 3", "title": "Linux и терминал", "block": "2", "collapsed": true,
+    "cards": [
+      { "title": "Основные команды", "desc": "Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.", "code": "# Где я нахожусь / список файлов\npwd\nls\nls -la // со скрытыми\n\n# Навигация\ncd папка\ncd .. // назад\ncd ~  // домой\n\n# Создать папку и файл\nmkdir имя-папки\ntouch имя-файла.txt\n\n# Удалить\nrm файл.txt\nrm -rf папка", "rule": "⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.", "ruleType": "warn" }
+    ]
+  },
+  {
+    "id": "s13", "icon": "🐳", "num": "БЛ. 2 · УР. 4", "title": "Docker — контейнеризация", "block": "2", "collapsed": true,
+    "cards": [
+      { "title": "Что такое Docker", "desc": "Docker упаковывает твою программу вместе со всем что ей нужно. <b>Image</b> (шаблон/рецепт) -> <b>Container</b> (запущенный процесс/блюдо) -> <b>Dockerfile</b> (инструкция сборки).", "code": "// Порядок работы:\n// 1. Написал Dockerfile (рецепт)\n// 2. docker build (приготовил)\n// 3. docker run (запустил)", "rule": "Docker решает проблему «А у меня на компьютере работало!»", "ruleType": "purple" },
+      { "title": "Dockerfile", "desc": "Файл без расширения в корне проекта. Содержит инструкции как собрать образ.", "code": "# Базовый образ — на основе чего строим\nFROM golang:1.22\n \n# Рабочая папка внутри контейнера\nWORKDIR /app\n \n# Копируем весь код внутрь контейнера\nCOPY . .\n \n# Команда которая запустится при старте\nCMD [\"go\", \"run\", \"main.go\"]", "rule": "FROM — на основе какого образа строим\nWORKDIR — рабочая папка\nCOPY . . — копируем код\nCMD — команда запуска", "ruleType": "normal" },
+      { "title": "Команды Docker", "desc": "Работа с образами и контейнерами.", "code": "# Запустить тестовый контейнер\ndocker run hello-world\n \n# Собрать образ (-t = tag, . = текущая папка)\ndocker build -t my-go-app .\n \n# Запустить контейнер\ndocker run my-go-app\n \n# Список\ndocker images  // образы\ndocker ps -a   // все контейнеры\n \n# Остановка и удаление\ndocker stop ID\ndocker rm ID\ndocker rmi my-go-app", "rule": "-t название даёт образу понятное имя вместо длинного ID типа sha256:bba...", "ruleType": "tip" }
+    ]
+  },
+  {
+    "id": "s14", "icon": "🌐", "num": "БЛ. 3 · УР. 1", "title": "Как работает HTTP", "block": "3", "collapsed": true,
+    "cards": [
+      { "title": "Запрос и ответ", "desc": "HTTP — протокол общения браузера с сервером. Браузер отправляет <b>Request</b>, сервер отвечает <b>Response</b>.", "code": "// URL = протокол + домен + путь\n// https://github.com/dmitrytretyak19\n\n// https — протокол\n// github.com — домен\n// /dmitrytretyak19 — путь", "rule": "Архитектура клиент-сервер: Клиент всегда инициирует запрос, Сервер только отвечает.", "ruleType": "normal" },
+      { "title": "GET · POST · PUT · DELETE", "desc": "Метод говорит серверу что именно ты хочешь сделать с данными.<br><br><b>GET</b>: Получить<br><b>POST</b>: Создать<br><b>PUT</b>: Обновить<br><b>DELETE</b>: Удалить", "code": "// Аналогия с рестораном:\nGET    // \"покажи меню\"\nPOST   // \"хочу заказать блюдо\"\nPUT    // \"хочу изменить заказ\"\nDELETE // \"отмени заказ\"", "rule": "Использование правильных методов (а не просто POST для всего) называется REST API.", "ruleType": "tip" },
+      { "title": "Коды ответов сервера", "desc": "Каждый ответ содержит код.<br><b>200</b>: Всё хорошо ✅<br><b>201</b>: Создано ✅<br><b>400</b>: Плохой запрос ❌<br><b>401</b>: Не авторизован ❌<br><b>404</b>: Не найдено ❌<br><b>500</b>: Ошибка сервера ❌", "code": "// Обработка статуса в Go (пример)\nif response.StatusCode == 200 {\n    fmt.Println(\"Успешно!\")\n} else {\n    fmt.Println(\"Ошибка:\", response.StatusCode)\n}", "rule": "2xx — успех · 4xx — ошибка клиента · 5xx — ошибка сервера", "ruleType": "warn" }
+    ]
+  }
+]; // END_DATA
+
+let currentBlockFilter = 'all';
+let isEditMode = false;
+
+// ═══ EDIT MODE LOGIC ═══
+function toggleEditMode() {
+  isEditMode = !isEditMode;
+  const btn = document.getElementById('edit-toggle-btn');
+  
+  if (isEditMode) {
+    document.body.classList.add('edit-mode');
+    btn.innerHTML = '👁️ Выйти из редактора';
+    btn.style.background = 'rgba(255, 149, 0, 0.15)';
+    btn.style.color = '#C27000';
+    document.querySelector('.header p').innerText = 'Режим редактирования активен. Кликайте по тексту для изменения.';
+    showToast('Режим редактирования включен');
+  } else {
+    document.body.classList.remove('edit-mode');
+    btn.innerHTML = '✏️ Редактировать';
+    btn.style.background = '';
+    btn.style.color = '';
+    document.querySelector('.header p').innerText = 'Режим просмотра. Нажмите «Редактировать» вверху для внесения изменений.';
+    showToast('Режим чтения включен');
+  }
+  renderApp();
+}
+
+// ═══ CORE RENDERING ENGINE ═══
+function renderApp() {
+  renderPills();
+  renderNavStrip();
+  renderSections();
+}
+
+function renderPills() {
+  const container = document.getElementById('pills-container');
+  container.innerHTML = `<span class="pill pill-all ${currentBlockFilter === 'all' ? 'active-pill' : ''}" onclick="filterByBlock('all')">🗂️ Показать все</span>`;
+  
+  BLOCKS.forEach(b => {
+    container.innerHTML += `<span class="pill ${b.colorClass} ${currentBlockFilter === b.id ? 'active-pill' : ''}" onclick="filterByBlock('${b.id}')">${b.label}</span>`;
+  });
+  
+  container.innerHTML += `<span class="pill require-edit" style="background: rgba(0,0,0,0.06); color: var(--text-primary); font-weight: 600;" onclick="createNewBlock()">➕ Добавить блок</span>`;
+
+  if (currentBlockFilter !== 'all') {
+    container.innerHTML += `<span class="pill require-edit" style="background: rgba(255,59,48,0.1); color: var(--sys-red); font-weight: 600;" onclick="deleteCurrentBlock()">🗑️ Удалить этот блок</span>`;
+  }
+}
+
+function renderNavStrip() {
+  const container = document.getElementById('nav-strip-container');
+  container.innerHTML = '';
+  
+  DATA.forEach(section => {
+    if (currentBlockFilter !== 'all' && section.block !== currentBlockFilter) return;
+    
+    const btn = document.createElement('button');
+    btn.className = `nav-btn ${(!section.collapsed) ? 'active' : ''}`;
+    btn.innerHTML = `${section.icon} ${section.title || 'Новая тема'}`;
+    btn.onclick = () => {
+      section.collapsed = !section.collapsed;
+      renderApp();
+      const target = document.getElementById(section.id);
+      if (target && !section.collapsed) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    container.appendChild(btn);
+  });
+}
+
+function renderSections() {
+  const container = document.getElementById('sections-container');
+  container.innerHTML = '';
+
+  const blockOptionsHtml = BLOCKS.map(b => `<option value="${b.id}">${b.label}</option>`).join('');
+
+  DATA.forEach((section, sIdx) => {
+    if (currentBlockFilter !== 'all' && section.block !== currentBlockFilter) return;
+
+    const secEl = document.createElement('div');
+    secEl.className = `section ${section.collapsed ? 'collapsed' : ''}`;
+    secEl.id = section.id;
+    secEl.dataset.block = section.block;
+
+    const headerEl = document.createElement('div');
+    headerEl.className = 'section-header';
+    headerEl.onclick = () => {
+      section.collapsed = !section.collapsed;
+      renderApp();
+    };
+
+    const currentBlock = BLOCKS.find(b => b.id === section.block);
+    const blockBadgeHtml = !isEditMode && currentBlock 
+      ? `<span class="pill ${currentBlock.colorClass}" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">${currentBlock.label.split(':')[0]}</span>` 
+      : '';
+
+    const currentSelectHtml = blockOptionsHtml.replace(`value="${section.block}"`, `value="${section.block}" selected`);
+    const stopProp = isEditMode ? 'event.stopPropagation()' : '';
+
+    headerEl.innerHTML = `
+      <span class="section-icon" contenteditable="${isEditMode}" onclick="${stopProp}" oninput="updateState(${sIdx}, null, 'icon', this)">${section.icon}</span>
+      <span class="section-num" contenteditable="${isEditMode}" onclick="${stopProp}" oninput="updateState(${sIdx}, null, 'num', this)">${section.num}</span>
+      ${blockBadgeHtml}
+      <span class="section-title" contenteditable="${isEditMode}" onclick="${stopProp}" oninput="updateState(${sIdx}, null, 'title', this)">${section.title}</span>
+      <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
+        <select class="select-type" onchange="updateSectionBlock(${sIdx}, this.value)">
+          ${currentSelectHtml}
+        </select>
+        <button class="del-btn" onclick="deleteSection(${sIdx})">🗑️</button>
+      </div>
+      <span class="chevron">▾</span>
+    `;
+    secEl.appendChild(headerEl);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'section-body';
+
+    const gridEl = document.createElement('div');
+    gridEl.className = 'grid';
+
+    section.cards.forEach((card, cIdx) => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      
+      cardEl.innerHTML = `
+        <div class="card-header">
+          <div class="card-title" contenteditable="${isEditMode}" oninput="updateState(${sIdx}, ${cIdx}, 'title', this)">${card.title}</div>
+          <select class="select-type require-edit" onchange="updateRuleType(${sIdx}, ${cIdx}, this.value)">
+            <option value="normal" ${card.ruleType === 'normal' ? 'selected' : ''}>Инфо</option>
+            <option value="tip" ${card.ruleType === 'tip' ? 'selected' : ''}>Лайфхак</option>
+            <option value="warn" ${card.ruleType === 'warn' ? 'selected' : ''}>Внимание</option>
+            <option value="purple" ${card.ruleType === 'purple' ? 'selected' : ''}>Заметка</option>
+          </select>
+          <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(${sIdx}, ${cIdx})">🗑️</button>
+        </div>
+        <div class="card-body">
+          <div class="desc" contenteditable="${isEditMode}" oninput="updateState(${sIdx}, ${cIdx}, 'desc', this)">${card.desc}</div>
+          <div class="code-wrap">
+            <pre contenteditable="${isEditMode}" oninput="updateState(${sIdx}, ${cIdx}, 'code', this)">${card.code}</pre>
+            <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
+          </div>
+          <div class="rule ${card.ruleType || 'normal'}" contenteditable="${isEditMode}" oninput="updateState(${sIdx}, ${cIdx}, 'rule', this)">${card.rule}</div>
+        </div>
+      `;
+      gridEl.appendChild(cardEl);
     });
-  }
 
-  // Пилюли — показывает блок, все разделы СВЁРНУТЫ
-  function filterBlock(block) {
-    document.querySelectorAll('.section').forEach(s => {
-      if (block === 'all') {
-        s.style.display = 'block';
-        s.classList.add('collapsed');
-      } else if (s.dataset.block === block) {
-        s.style.display = 'block';
-        s.classList.add('collapsed');
-      } else {
-        s.style.display = 'none';
-        s.classList.add('collapsed');
+    bodyEl.appendChild(gridEl);
+
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'add-card-container require-edit';
+    actionWrap.innerHTML = `<button class="btn-add-card" onclick="createNewCard(${sIdx})">➕ Добавить карточку в этот блок</button>`;
+    bodyEl.appendChild(actionWrap);
+
+    secEl.appendChild(bodyEl);
+    container.appendChild(secEl);
+  });
+}
+
+// ═══ STATE MUTATIONS ═══
+function updateState(sIdx, cIdx, field, element) {
+  if (cIdx === null) {
+    DATA[sIdx][field] = element.innerHTML;
+  } else {
+    DATA[sIdx].cards[cIdx][field] = element.innerHTML;
+  }
+}
+
+function updateRuleType(sIdx, cIdx, value) {
+  DATA[sIdx].cards[cIdx].ruleType = value;
+  renderSections();
+}
+
+function updateSectionBlock(sIdx, value) {
+  DATA[sIdx].block = value;
+  renderApp();
+}
+
+function createNewSection() {
+  const newId = `s${Date.now()}`;
+  const blockToAssign = currentBlockFilter === 'all' ? (BLOCKS[0]?.id || '1') : currentBlockFilter;
+  
+  DATA.push({
+    "id": newId, "icon": "📝", "num": "НОВАЯ", "title": "Название новой темы", "block": blockToAssign, "collapsed": false,
+    "cards": [
+      { "title": "Заголовок карточки", "desc": "Описание темы конспекта.", "code": "// Твой код", "rule": "Правило или совет.", "ruleType": "normal" }
+    ]
+  });
+  
+  renderApp();
+  setTimeout(() => {
+    const el = document.getElementById(newId);
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+  showToast('Новая тема успешно добавлена!');
+}
+
+function createNewCard(sIdx) {
+  DATA[sIdx].cards.push({
+    "title": "Новое правило", "desc": "Описание структуры или синтаксиса.", "code": "// Напиши свой код сюда", "rule": "Дополнительная заметка к коду.", "ruleType": "normal"
+  });
+  renderSections();
+  showToast('Карточка добавлена в конец темы.');
+}
+
+function createNewBlock() {
+  const defaultName = `🔲 Блок ${BLOCKS.length + 1}: Новая тема`;
+  const name = prompt("Введите название нового блока (вместе с эмодзи):", defaultName);
+  
+  if (!name || name.trim() === '') return;
+  
+  const newId = Date.now().toString();
+  const colors = ['pill-c0', 'pill-c1', 'pill-c2', 'pill-c3', 'pill-c4'];
+  const newColor = colors[BLOCKS.length % colors.length];
+  
+  BLOCKS.push({ id: newId, label: name, colorClass: newColor });
+  
+  filterByBlock(newId);
+  showToast('Новый блок успешно создан!');
+}
+
+function deleteCurrentBlock() {
+  if (currentBlockFilter === 'all') return;
+
+  const blockToDelete = BLOCKS.find(b => b.id === currentBlockFilter);
+  if (!blockToDelete) return;
+
+  const confirmMsg = `ВНИМАНИЕ!\nВы уверены, что хотите удалить блок "${blockToDelete.label}"?\n\nВсе темы и карточки внутри этого блока также будут безвозвратно удалены!`;
+  
+  if (confirm(confirmMsg)) {
+    const bIdx = BLOCKS.findIndex(b => b.id === currentBlockFilter);
+    if (bIdx > -1) BLOCKS.splice(bIdx, 1);
+
+    for (let i = DATA.length - 1; i >= 0; i--) {
+      if (DATA[i].block === currentBlockFilter) {
+        DATA.splice(i, 1);
       }
-    });
-    setLabel(block);
-    syncNavButtons();
+    }
+
+    currentBlockFilter = 'all';
+    document.getElementById('current-filter-label').innerText = 'Конспект · Все темы';
+    renderApp();
+    showToast('Блок и его содержимое удалены.');
   }
+}
 
-  // Кнопки уроков — показывает блок, РАЗВОРАЧИВАЕТ нужный урок
-  function navToggle(id, btn) {
-    const section = document.getElementById(id);
-    if (!section) return;
-
-    const block = String(sectionBlock[id]);
-
-    // Показываем только нужный блок
-    document.querySelectorAll('.section').forEach(s => {
-      if (s.dataset.block === block) {
-        s.style.display = 'block';
-      } else {
-        s.style.display = 'none';
-        s.classList.add('collapsed');
-      }
-    });
-
-    // Переключаем collapsed для нажатого урока
-    section.classList.toggle('collapsed');
-
-    setLabel(block);
-    syncNavButtons();
+function deleteSection(sIdx) {
+  if(confirm(`Удалить полностью тему "${DATA[sIdx].title}" со всеми карточками?`)) {
+    DATA.splice(sIdx, 1);
+    renderApp();
   }
+}
 
-  // Стрелка внутри раздела — просто сворачивает/разворачивает
-  function toggleSection(header) {
-    header.parentElement.classList.toggle('collapsed');
-    syncNavButtons();
+function deleteCard(sIdx, cIdx) {
+  if(confirm('Удалить эту карточку?')) {
+    DATA[sIdx].cards.splice(cIdx, 1);
+    renderSections();
   }
+}
 
-  function expandAll() {
-    document.querySelectorAll('.section').forEach(s => {
-      s.style.display = 'block';
-      s.classList.remove('collapsed');
-    });
-    setLabel('all');
-    syncNavButtons();
+// ═══ TOP CONTROL BAR FUNCTIONS ═══
+function expandAll() {
+  DATA.forEach(s => s.collapsed = false);
+  renderApp();
+}
+
+function collapseAll() {
+  DATA.forEach(s => s.collapsed = true);
+  renderApp();
+}
+
+// ═══ FILTER ═══
+function filterByBlock(block) {
+  currentBlockFilter = block;
+  if (block === 'all') {
+    document.getElementById('current-filter-label').innerText = 'Конспект · Все блоки';
+  } else {
+    const activeBlock = BLOCKS.find(b => b.id === block);
+    document.getElementById('current-filter-label').innerText = activeBlock ? `Конспект · ${activeBlock.label}` : 'Конспект';
   }
+  renderApp();
+}
 
-  function collapseAll() {
-    document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
-    syncNavButtons();
+// ═══ COPIER ═══
+function copyCodeText(btn) {
+  const pre = btn.previousElementSibling;
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+// ═══ TOAST NOTIFICATION ═══
+function showToast(text) {
+  const t = document.getElementById('toast_alert');
+  t.innerText = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══ FILE EXPORTER ═══
+function doExport() {
+  let fullHtml = document.documentElement.outerHTML;
+  
+  const updatedDataJson = JSON.stringify(DATA, null, 2);
+  const updatedBlocksJson = JSON.stringify(BLOCKS, null, 2);
+  
+  const dataRegex = /const\s+DATA\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_DATA/;
+  const blocksRegex = /const\s+BLOCKS\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_BLOCKS/;
+  
+  if (dataRegex.test(fullHtml) && blocksRegex.test(fullHtml)) {
+    fullHtml = fullHtml.replace(dataRegex, `const DATA = ${updatedDataJson}; // END_DATA`);
+    fullHtml = fullHtml.replace(blocksRegex, `const BLOCKS = ${updatedBlocksJson}; // END_BLOCKS`);
+  } else {
+    alert("Критическая ошибка: Архитектурный маркер базы данных поврежден.");
+    return;
   }
-
-  function copyCode(btn) {
-    const pre = btn.previousElementSibling;
-    navigator.clipboard.writeText(pre.innerText).then(() => {
-      btn.textContent = '✓ скопировано';
-      btn.classList.add('copied');
-      const toast = document.getElementById('toast');
-      toast.classList.add('show');
-      setTimeout(() => {
-        btn.textContent = 'копировать';
-        btn.classList.remove('copied');
-        toast.classList.remove('show');
-      }, 1800);
-    });
+  
+  try {
+    const blob = new Blob(["<!DOCTYPE html>\n" + fullHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'go_notes_ios26_glass.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Новый файл конспекта сохранён!');
+  } catch (err) {
+    alert('Ошибка работы дисковой подсистемы: ' + err.message);
   }
+}
 
-  // Инициализация — все блоки видны, все свёрнуты
-  filterBlock('all');
+// Run Initial Render
+renderApp();
 </script>
-
 </body>
 </html>
