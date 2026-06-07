@@ -1,5 +1,302 @@
 <!DOCTYPE html>
 <html lang="ru"><head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js" integrity="sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+      (function() {
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            window.parent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            window.parent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            window.parent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        let requestId = 0;
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = requestId++;
+              callbacksMap.set(id, { resolve, reject });
+              window.parent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = requestId++;
+              callbacksMap.set(id, { resolve, reject });
+              window.parent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = requestId++;
+              callbacksMap.set(id, { resolve, reject });
+              window.parent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = requestId++;
+              callbacksMap.set(id, { resolve, reject });
+              window.parent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = requestId++;
+              callbacksMap.set(id, { resolve, reject });
+              window.parent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = requestId++;
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream
+                resolve(new Response(stream, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  headers: response.headers
+                }));
+              },
+              reject,
+              channelId
+            });
+            
+            window.parent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          if (event.data.type === 'takeScreenshot') {
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              window.parent.postMessage({
+                type: 'screenshotError',
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures (htmlToImage undefined) and toPng errors
+            // so the parent always gets a response instead of hanging forever.
+            try {
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              window.parent.postMessage({
+                type: 'screenshotData',
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              window.parent.postMessage({
+                type: 'screenshotError',
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              window.parent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            window.parent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            window.parent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          window.parent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          window.parent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Go — index </title>
@@ -14,13 +311,13 @@
   --sys-gray:    #8E8E93;
   --sys-bg:      #F2F2F7;
 
-  --glass-base:    rgba(255, 255, 255, 0.7);
-  --glass-panel:   rgba(255, 255, 255, 0.45);
-  --glass-card:    rgba(255, 255, 255, 0.75);
-  --glass-code:    rgba(28, 28, 30, 0.9);
+  --glass-base:    rgba(255, 255, 255, 0.82);
+  --glass-panel:   rgba(255, 255, 255, 0.62);
+  --glass-card:    rgba(255, 255, 255, 0.88);
+  --glass-code:    rgba(28, 28, 30, 0.94);
   
-  --blur-heavy:    blur(40px) saturate(200%);
-  --blur-medium:   blur(24px) saturate(180%);
+  --blur-heavy:    blur(60px) saturate(220%);
+  --blur-medium:   blur(36px) saturate(200%);
 
   --border-glass:  rgba(255, 255, 255, 0.8);
   --border-soft:   rgba(0, 0, 0, 0.06);
@@ -73,20 +370,91 @@ body:not(.edit-mode) .require-edit { display: none !important; }
   100% { transform: rotate(4deg) scale(1.05); }
 }
 
-/* Floating Dynamic Island Nav */
+/* ═══ NAV — Liquid Glass + Smooth Scroll Hide ═══ */
+
+/* Мини-иконка — всегда слева, появляется когда шапка скрыта */
+.nav-mini {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(60px) saturate(230%) brightness(1.05);
+  -webkit-backdrop-filter: blur(60px) saturate(230%) brightness(1.05);
+  border: 1px solid rgba(255,255,255,0.8);
+  border-radius: 999px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.92);
+  transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 14px;
+}
+.nav-mini.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.nav-mini-badge {
+  background: linear-gradient(135deg, #0A84FF, #007AFF);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 0 2px 6px rgba(0,122,255,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.nav-mini span { color: var(--sys-blue); font-weight: 400; font-size: 13px; }
+
+/* Основная шапка */
 .nav-container {
   position: fixed; top: 16px; left: 0; right: 0; z-index: 300;
   display: flex; justify-content: center; padding: 0 16px; pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform, opacity;
 }
+.nav-container.nav-hidden {
+  opacity: 0;
+  transform: translateY(-20px);
+  pointer-events: none;
+}
+
 .nav {
   pointer-events: auto; display: flex; flex-direction: column; gap: 10px;
-  background: var(--glass-base); backdrop-filter: var(--blur-heavy); -webkit-backdrop-filter: var(--blur-heavy);
-  border: 1px solid var(--border-glass); border-radius: var(--radius-xl);
-  padding: 12px 18px; box-shadow: var(--shadow-float); width: 100%; max-width: 1050px;
+  background: rgba(255,255,255,0.68);
+  backdrop-filter: blur(60px) saturate(240%) brightness(1.06);
+  -webkit-backdrop-filter: blur(60px) saturate(240%) brightness(1.06);
+  border: 1px solid rgba(255,255,255,0.78);
+  border-radius: var(--radius-xl);
+  padding: 12px 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.07), 0 1px 0 rgba(255,255,255,0.95) inset, 0 -1px 0 rgba(0,0,0,0.03) inset;
+  width: 100%; max-width: 1050px;
 }
 .nav-top { display: flex; align-items: center; justify-content: space-between; }
 .nav-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 16px; }
-.nav-logo-badge { background: var(--sys-blue); color: white; padding: 4px 8px; border-radius: 8px; font-size: 12px; }
+
+/* GO бейдж — белый текст, градиент, тень */
+.nav-logo-badge {
+  background: linear-gradient(135deg, #0A84FF 0%, #007AFF 100%);
+  color: white;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 0 2px 8px rgba(0,122,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
 .nav-logo span { color: var(--sys-blue); font-weight: 400; }
 
 .nav-controls { display: flex; gap: 6px; align-items: center; }
@@ -268,12 +636,18 @@ tr:last-child td { border-bottom: none; }
 
 @media (max-width: 768px) { .main { padding-top: 145px; } }
 </style>
-<style type="text/css"></style></head>
-<body class="edit-mode">
+<style type="text/css"></style><style type="text/css"></style></head>
+<body class="" id="artifacts-component-root-html">
 
 <div class="bg-mesh"></div>
 
-<div class="nav-container">
+<!-- Мини-иконка при скролле -->
+<a class="nav-mini" id="nav-mini" onclick="showNav()">
+  <span class="nav-mini-badge">Go</span>
+  <span>Конспект <span>Дмитрий</span></span>
+</a>
+
+<div class="nav-container" id="nav-container">
   <nav class="nav">
     <div class="nav-top">
       <a class="nav-logo" href="#">
@@ -281,14 +655,14 @@ tr:last-child td { border-bottom: none; }
         <span>Конспект <span>Дмитрий</span></span>
       </a>
       <div class="nav-controls">
-        <button class="ctrl-btn" id="edit-toggle-btn" onclick="toggleEditMode()" style="background: rgba(255, 149, 0, 0.15); color: rgb(194, 112, 0);">👁️ Выйти из редактора</button>
+        <button class="ctrl-btn" id="edit-toggle-btn" onclick="toggleEditMode()" style="">✏️ Редактировать</button>
         <button class="ctrl-btn add-topic require-edit" onclick="createNewSection()">➕ Тема</button>
         <button class="ctrl-btn" onclick="expandAll()">📂 Все</button>
         <button class="ctrl-btn" onclick="collapseAll()">📁 Свернуть</button>
         <button class="ctrl-btn save" onclick="doExport()">💾 Сохранить</button>
       </div>
     </div>
-    <div class="nav-strip" id="nav-strip-container"><button class="nav-btn ">📌 Шаблон любой программы</button><button class="nav-btn ">📦 Переменные и типы данных</button><button class="nav-btn ">🚦 Условия</button><button class="nav-btn ">🔄 Циклы</button><button class="nav-btn ">🔧 Функции</button><button class="nav-btn ">📋 Массивы и слайсы</button><button class="nav-btn ">🗺️ Map</button><button class="nav-btn ">🏗️ Структуры</button><button class="nav-btn ">🔌 Интерфейсы</button><button class="nav-btn ">❌ Ошибки</button><button class="nav-btn ">🌿 Git — система контроля версий</button><button class="nav-btn ">🐙 GitHub — код в интернете</button><button class="nav-btn ">🐧 Linux и терминал</button><button class="nav-btn ">🐳 Docker — контейнеризация</button><button class="nav-btn ">🌐 Как работает HTTP</button><button class="nav-btn ">📝 Первый HTTP сервер&nbsp;</button></div>
+    <div class="nav-strip" id="nav-strip-container"><button class="nav-btn ">📌 Шаблон любой программы</button><button class="nav-btn ">📦 Переменные и типы данных</button><button class="nav-btn ">🚦 Условия</button><button class="nav-btn ">🔄 Циклы</button><button class="nav-btn ">🔧 Функции</button><button class="nav-btn ">📋 Массивы и слайсы</button><button class="nav-btn ">🗺️ Map</button><button class="nav-btn ">🏗️ Структуры</button><button class="nav-btn ">🔌 Интерфейсы</button><button class="nav-btn ">❌ Ошибки</button><button class="nav-btn ">🌿 Git — система контроля версий</button><button class="nav-btn ">🐙 GitHub — код в интернете</button><button class="nav-btn ">🐧 Linux и терминал</button><button class="nav-btn ">🐳 Docker — контейнеризация</button><button class="nav-btn ">🌐 Как работает HTTP</button><button class="nav-btn ">🖥️ Первый HTTP сервер</button></div>
   </nav>
 </div>
 
@@ -296,15 +670,15 @@ tr:last-child td { border-bottom: none; }
   <div class="header">
     <div class="header-label" id="current-filter-label">Конспект · Все блоки</div>
     <h1>Изучение <span>Go</span></h1>
-    <p>Режим редактирования активен. Кликайте по тексту для изменения.</p>
+    <p>Режим просмотра. Нажмите «Редактировать» вверху для внесения изменений.</p>
     <div class="pills" id="pills-container"><span class="pill pill-all active-pill" onclick="filterByBlock('all')">🗂️ Показать все</span><span class="pill pill-c0 " onclick="filterByBlock('1')">🟢 Блок 1: Основы Go</span><span class="pill pill-c1 " onclick="filterByBlock('2')">🔵 Блок 2: Инструменты</span><span class="pill pill-c2 " onclick="filterByBlock('3')">🟣 Блок 3: HTTP и API</span><span class="pill require-edit" style="background: rgba(0,0,0,0.06); color: var(--text-primary); font-weight: 600;" onclick="createNewBlock()">➕ Добавить блок</span></div>
   </div>
 
   <div id="sections-container"><div class="section collapsed" id="s0" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(0, null, 'icon', this)">📌</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(0, null, 'num', this)">ОСНОВА</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(0, null, 'title', this)">Шаблон любой программы</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(0, null, 'icon', this)">📌</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(0, null, 'num', this)">ОСНОВА</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(0, null, 'title', this)">Шаблон любой программы</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(0, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -314,7 +688,7 @@ tr:last-child td { border-bottom: none; }
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(0, 0, 'title', this)">Структура файла</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(0, 0, 'title', this)">Структура файла</div>
           <select class="select-type require-edit" onchange="updateRuleType(0, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -324,9 +698,9 @@ tr:last-child td { border-bottom: none; }
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(0, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(0, 0, 'desc', this)">Каждый Go файл начинается одинаково.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(0, 0, 'desc', this)" onpaste="handlePaste(event, 0, 0, 'desc')">Каждый Go файл начинается одинаково.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(0, 0, 'code', this)">package main
+            <pre contenteditable="false" oninput="updateState(0, 0, 'code', this)" onpaste="handlePaste(event, 0, 0, 'code')">package main
 
 import "fmt"
 
@@ -335,11 +709,16 @@ func main() {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(0, 0, 'rule', this)" style="">package main — точка входа<br>import "fmt" — подключаем вывод<br>func main() — Go запускает отсюда</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(0, 0, 'rule', this)" onpaste="handlePaste(event, 0, 0, 'rule')" style="">package main — точка входа<br>import "fmt" — подключаем вывод<br>func main() — Go запускает отсюда</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 0, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 0, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(0, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(0, 1, 'title', this)">Запуск программы</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(0, 1, 'title', this)">Запуск программы</div>
           <select class="select-type require-edit" onchange="updateRuleType(0, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -349,9 +728,9 @@ func main() {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(0, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(0, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(0, 1, 'desc', this)" onpaste="handlePaste(event, 0, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(0, 1, 'code', this)"># Перейти в папку с кодом
+            <pre contenteditable="false" oninput="updateState(0, 1, 'code', this)" onpaste="handlePaste(event, 0, 1, 'code')"># Перейти в папку с кодом
 cd ~/Desktop/claude
 
 # Запустить программу
@@ -361,13 +740,18 @@ go run main.go
 ls</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(0, 1, 'rule', this)" style="">Перед запуском убедись что ты в папке с файлом!</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(0, 1, 'rule', this)" onpaste="handlePaste(event, 0, 1, 'rule')" style="">Перед запуском убедись что ты в папке с файлом!</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 0, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 0, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(0, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(0)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s1" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(1, null, 'icon', this)">📦</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(1, null, 'num', this)">УР. 2</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(1, null, 'title', this)">Переменные и типы данных</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(1, null, 'icon', this)">📦</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(1, null, 'num', this)">УР. 2</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(1, null, 'title', this)">Переменные и типы данных</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(1, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -377,7 +761,7 @@ ls</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(1, 0, 'title', this)">var и :=</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(1, 0, 'title', this)">var и :=</div>
           <select class="select-type require-edit" onchange="updateRuleType(1, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -387,9 +771,9 @@ ls</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(1, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(1, 0, 'desc', this)">Переменная — коробка с именем. Внутри хранится значение.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(1, 0, 'desc', this)" onpaste="handlePaste(event, 1, 0, 'desc')">Переменная — коробка с именем. Внутри хранится значение.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(1, 0, 'code', this)">// Длинный способ
+            <pre contenteditable="false" oninput="updateState(1, 0, 'code', this)" onpaste="handlePaste(event, 1, 0, 'code')">// Длинный способ
 var имя string = "Дмитрий"
 var возраст int = 25
 var активен bool = true
@@ -404,11 +788,16 @@ var результат int
 результат = 42</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(1, 0, 'rule', this)" style="">"25" — текст, математика не работает!<br>25 — число. Разница важна!</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(1, 0, 'rule', this)" onpaste="handlePaste(event, 1, 0, 'rule')" style="">"25" — текст, математика не работает!<br>25 — число. Разница важна!</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 1, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 1, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(1, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(1, 1, 'title', this)">string · int · bool</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(1, 1, 'title', this)">string · int · bool</div>
           <select class="select-type require-edit" onchange="updateRuleType(1, 1, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -418,20 +807,25 @@ var результат int
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(1, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(1, 1, 'desc', this)"><div class="table-wrap"><table><tbody><tr><th>Тип</th><th>Что хранит</th><th>Пример</th></tr><tr><td>string</td><td>текст</td><td>"Дмитрий"</td></tr><tr><td>int</td><td>целое число</td><td>25</td></tr><tr><td>bool</td><td>правда/ложь</td><td>true / false</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(1, 1, 'desc', this)" onpaste="handlePaste(event, 1, 1, 'desc')"><div class="table-wrap"><table><tbody><tr><th>Тип</th><th>Что хранит</th><th>Пример</th></tr><tr><td>string</td><td>текст</td><td>"Дмитрий"</td></tr><tr><td>int</td><td>целое число</td><td>25</td></tr><tr><td>bool</td><td>правда/ложь</td><td>true / false</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(1, 1, 'code', this)">// Print vs Println
+            <pre contenteditable="false" oninput="updateState(1, 1, 'code', this)" onpaste="handlePaste(event, 1, 1, 'code')">// Print vs Println
 fmt.Print("Привет")    // без переноса
 fmt.Println("Привет") // с переносом строки</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(1, 1, 'rule', this)" style="">string всегда в кавычках " "<br>int без кавычек<br>bool только true или false</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(1, 1, 'rule', this)" onpaste="handlePaste(event, 1, 1, 'rule')" style="">string всегда в кавычках " "<br>int без кавычек<br>bool только true или false</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 1, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 1, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(1, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(1)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s2" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(2, null, 'icon', this)">🚦</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(2, null, 'num', this)">УР. 3</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(2, null, 'title', this)">Условия</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(2, null, 'icon', this)">🚦</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(2, null, 'num', this)">УР. 3</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(2, null, 'title', this)">Условия</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(2, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -441,7 +835,7 @@ fmt.Println("Привет") // с переносом строки</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(2, 0, 'title', this)">if / else if / else</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(2, 0, 'title', this)">if / else if / else</div>
           <select class="select-type require-edit" onchange="updateRuleType(2, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -451,9 +845,9 @@ fmt.Println("Привет") // с переносом строки</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(2, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(2, 0, 'desc', this)">Проверяет условия сверху вниз — останавливается на первом верном.<br><br><div class="table-wrap"><table><tbody><tr><th>Знак</th><th>Значение</th></tr><tr><td>==</td><td>равно</td></tr><tr><td>!=</td><td>не равно (! = НЕ)</td></tr><tr><td>&gt;</td><td>больше</td></tr><tr><td>&lt;</td><td>меньше</td></tr><tr><td>&gt;=</td><td>больше или равно</td></tr><tr><td>&lt;=</td><td>меньше или равно</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(2, 0, 'desc', this)" onpaste="handlePaste(event, 2, 0, 'desc')">Проверяет условия сверху вниз — останавливается на первом верном.<br><br><div class="table-wrap"><table><tbody><tr><th>Знак</th><th>Значение</th></tr><tr><td>==</td><td>равно</td></tr><tr><td>!=</td><td>не равно (! = НЕ)</td></tr><tr><td>&gt;</td><td>больше</td></tr><tr><td>&lt;</td><td>меньше</td></tr><tr><td>&gt;=</td><td>больше или равно</td></tr><tr><td>&lt;=</td><td>меньше или равно</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(2, 0, 'code', this)">if возраст &gt;= 18 {
+            <pre contenteditable="false" oninput="updateState(2, 0, 'code', this)" onpaste="handlePaste(event, 2, 0, 'code')">if возраст &gt;= 18 {
     fmt.Println("Взрослый")
 } else if возраст &gt;= 12 {
     fmt.Println("Подросток")
@@ -469,13 +863,18 @@ if пароль != "1234" {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(2, 0, 'rule', this)" style="">!= означает НЕ равно (! = НЕ)</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(2, 0, 'rule', this)" onpaste="handlePaste(event, 2, 0, 'rule')" style="">!= означает НЕ равно (! = НЕ)</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 2, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 2, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(2, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(2)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s3" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(3, null, 'icon', this)">🔄</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(3, null, 'num', this)">УР. 4</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(3, null, 'title', this)">Циклы</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(3, null, 'icon', this)">🔄</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(3, null, 'num', this)">УР. 4</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(3, null, 'title', this)">Циклы</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(3, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -485,7 +884,7 @@ if пароль != "1234" {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(3, 0, 'title', this)">for — три части</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(3, 0, 'title', this)">for — три части</div>
           <select class="select-type require-edit" onchange="updateRuleType(3, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -495,9 +894,9 @@ if пароль != "1234" {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(3, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(3, 0, 'desc', this)">В Go один вид цикла — for. Повторяет код нужное количество раз.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(3, 0, 'desc', this)" onpaste="handlePaste(event, 3, 0, 'desc')">В Go один вид цикла — for. Повторяет код нужное количество раз.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(3, 0, 'code', this)">// Обычный цикл от 1 до 5
+            <pre contenteditable="false" oninput="updateState(3, 0, 'code', this)" onpaste="handlePaste(event, 3, 0, 'code')">// Обычный цикл от 1 до 5
 for i := 1; i &lt;= 5; i++ {
     fmt.Println(i)
 }
@@ -508,11 +907,16 @@ for i := 5; i &lt;= 25; i += 5 {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(3, 0, 'rule', this)" style="">i := 1 — откуда начать<br>i &lt;= 5 — когда остановиться<br>i++ — прибавить 1 каждый шаг</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(3, 0, 'rule', this)" onpaste="handlePaste(event, 3, 0, 'rule')" style="">i := 1 — откуда начать<br>i &lt;= 5 — когда остановиться<br>i++ — прибавить 1 каждый шаг</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 3, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 3, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(3, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(3, 1, 'title', this)">break / continue / %</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(3, 1, 'title', this)">break / continue / %</div>
           <select class="select-type require-edit" onchange="updateRuleType(3, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -522,9 +926,9 @@ for i := 5; i &lt;= 25; i += 5 {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(3, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(3, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(3, 1, 'desc', this)" onpaste="handlePaste(event, 3, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(3, 1, 'code', this)">// break — остановить цикл полностью
+            <pre contenteditable="false" oninput="updateState(3, 1, 'code', this)" onpaste="handlePaste(event, 3, 1, 'code')">// break — остановить цикл полностью
 for i := 1; i &lt;= 10; i++ {
     if i == 5 { break }
     fmt.Println(i) // 1 2 3 4
@@ -543,13 +947,18 @@ for i := 1; i &lt;= 10; i++ {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(3, 1, 'rule', this)" style="">break срабатывает ДО вывода! i==5 с break → выведет 1 2 3 4</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(3, 1, 'rule', this)" onpaste="handlePaste(event, 3, 1, 'rule')" style="">break срабатывает ДО вывода! i==5 с break → выведет 1 2 3 4</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 3, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 3, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(3, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(3)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s4" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(4, null, 'icon', this)">🔧</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(4, null, 'num', this)">УР. 5</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(4, null, 'title', this)">Функции</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(4, null, 'icon', this)">🔧</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(4, null, 'num', this)">УР. 5</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(4, null, 'title', this)">Функции</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(4, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -559,7 +968,7 @@ for i := 1; i &lt;= 10; i++ {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(4, 0, 'title', this)">Создание и вызов</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(4, 0, 'title', this)">Создание и вызов</div>
           <select class="select-type require-edit" onchange="updateRuleType(4, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -569,9 +978,9 @@ for i := 1; i &lt;= 10; i++ {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(4, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(4, 0, 'desc', this)">Пишешь один раз — вызываешь сколько угодно.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(4, 0, 'desc', this)" onpaste="handlePaste(event, 4, 0, 'desc')">Пишешь один раз — вызываешь сколько угодно.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(4, 0, 'code', this)">// Без возврата
+            <pre contenteditable="false" oninput="updateState(4, 0, 'code', this)" onpaste="handlePaste(event, 4, 0, 'code')">// Без возврата
 func приветствие(имя string) {
     fmt.Println("Привет,", имя)
 }
@@ -586,11 +995,16 @@ func инфо(имя string, возраст int) {
 инфо("Алибек", 30)</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(4, 0, 'rule', this)" style="">Типы параметров указываются после их имени (имя string).</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(4, 0, 'rule', this)" onpaste="handlePaste(event, 4, 0, 'rule')" style="">Типы параметров указываются после их имени (имя string).</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 4, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 4, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(4, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(4, 1, 'title', this)">Возврат значения</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(4, 1, 'title', this)">Возврат значения</div>
           <select class="select-type require-edit" onchange="updateRuleType(4, 1, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -600,9 +1014,9 @@ func инфо(имя string, возраст int) {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(4, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(4, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(4, 1, 'desc', this)" onpaste="handlePaste(event, 4, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(4, 1, 'code', this)">// Возвращает число
+            <pre contenteditable="false" oninput="updateState(4, 1, 'code', this)" onpaste="handlePaste(event, 4, 1, 'code')">// Возвращает число
 func сложить(а int, б int) int {
     return а + б
 }
@@ -620,13 +1034,18 @@ func isAdult(возраст int) bool {
 fmt.Println(результат) // 8</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(4, 1, 'rule', this)" style="">return числа → пиши int<br>return текста → пиши string<br>return true/false → пиши bool<br>нет return → нет типа</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(4, 1, 'rule', this)" onpaste="handlePaste(event, 4, 1, 'rule')" style="">return числа → пиши int<br>return текста → пиши string<br>return true/false → пиши bool<br>нет return → нет типа</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 4, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 4, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(4, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(4)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s5" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(5, null, 'icon', this)">📋</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(5, null, 'num', this)">УР. 6</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(5, null, 'title', this)">Массивы и слайсы</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(5, null, 'icon', this)">📋</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(5, null, 'num', this)">УР. 6</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(5, null, 'title', this)">Массивы и слайсы</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(5, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -636,7 +1055,7 @@ fmt.Println(результат) // 8</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(5, 0, 'title', this)">Создание и операции</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(5, 0, 'title', this)">Создание и операции</div>
           <select class="select-type require-edit" onchange="updateRuleType(5, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -646,9 +1065,9 @@ fmt.Println(результат) // 8</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(5, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(5, 0, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(5, 0, 'desc', this)" onpaste="handlePaste(event, 5, 0, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(5, 0, 'code', this)">// Массив — фиксированный [5]
+            <pre contenteditable="false" oninput="updateState(5, 0, 'code', this)" onpaste="handlePaste(event, 5, 0, 'code')">// Массив — фиксированный [5]
 оценки := [5]int{5, 4, 5, 3, 4}
 
 // Слайс — гибкий []
@@ -665,11 +1084,16 @@ fmt.Println(оценки[2]) // 5 — третий
 fmt.Println(len(оценки))</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(5, 0, 'rule', this)" style="">Индексы с нуля! [0]=первый, [1]=второй</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(5, 0, 'rule', this)" onpaste="handlePaste(event, 5, 0, 'rule')" style="">Индексы с нуля! [0]=первый, [1]=второй</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 5, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 5, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(5, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(5, 1, 'title', this)">for range</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(5, 1, 'title', this)">for range</div>
           <select class="select-type require-edit" onchange="updateRuleType(5, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -679,9 +1103,9 @@ fmt.Println(len(оценки))</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(5, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(5, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(5, 1, 'desc', this)" onpaste="handlePaste(event, 5, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(5, 1, 'code', this)">// С индексом
+            <pre contenteditable="false" oninput="updateState(5, 1, 'code', this)" onpaste="handlePaste(event, 5, 1, 'code')">// С индексом
 for i, значение := range оценки {
     fmt.Println(i, значение)
 }
@@ -698,13 +1122,18 @@ for _, имя := range имена {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule purple" contenteditable="true" oninput="updateState(5, 1, 'rule', this)" style="">_ = "этот параметр не нужен, игнорируй"</div>
+          <div class="rule purple" contenteditable="false" oninput="updateState(5, 1, 'rule', this)" onpaste="handlePaste(event, 5, 1, 'rule')" style="">_ = "этот параметр не нужен, игнорируй"</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 5, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 5, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(5, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(5)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s6" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(6, null, 'icon', this)">🗺️</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(6, null, 'num', this)">УР. 7</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(6, null, 'title', this)">Map</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(6, null, 'icon', this)">🗺️</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(6, null, 'num', this)">УР. 7</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(6, null, 'title', this)">Map</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(6, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -714,7 +1143,7 @@ for _, имя := range имена {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(6, 0, 'title', this)">Создание и операции</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(6, 0, 'title', this)">Создание и операции</div>
           <select class="select-type require-edit" onchange="updateRuleType(6, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -724,9 +1153,9 @@ for _, имя := range имена {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(6, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(6, 0, 'desc', this)">Хранит данные по ключу. Слайс ищет по номеру — Map по имени.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(6, 0, 'desc', this)" onpaste="handlePaste(event, 6, 0, 'desc')">Хранит данные по ключу. Слайс ищет по номеру — Map по имени.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(6, 0, 'code', this)">// map[тип_ключа]тип_значения
+            <pre contenteditable="false" oninput="updateState(6, 0, 'code', this)" onpaste="handlePaste(event, 6, 0, 'code')">// map[тип_ключа]тип_значения
 телефоны := map[string]string{
     "Дмитрий": "375291234567",
     "Алибек":  "375291234568",
@@ -747,11 +1176,16 @@ for ключ, значение := range телефоны {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(6, 0, 'rule', this)" style="">В отличие от массивов, Map не гарантирует порядок элементов при переборе.</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(6, 0, 'rule', this)" onpaste="handlePaste(event, 6, 0, 'rule')" style="">В отличие от массивов, Map не гарантирует порядок элементов при переборе.</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 6, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 6, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(6, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(6, 1, 'title', this)">Проверка и сравнение</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(6, 1, 'title', this)">Проверка и сравнение</div>
           <select class="select-type require-edit" onchange="updateRuleType(6, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -761,9 +1195,9 @@ for ключ, значение := range телефоны {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(6, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(6, 1, 'desc', this)"><div class="table-wrap"><table><tbody><tr><th></th><th>Слайс</th><th>Map</th></tr><tr><td>Поиск</td><td>по [0] [1]</td><td>по ["имя"]</td></tr><tr><td>Добавить</td><td>append()</td><td>map["к"] = "з"</td></tr><tr><td>Удалить</td><td>—</td><td>delete()</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(6, 1, 'desc', this)" onpaste="handlePaste(event, 6, 1, 'desc')"><div class="table-wrap"><table><tbody><tr><th></th><th>Слайс</th><th>Map</th></tr><tr><td>Поиск</td><td>по [0] [1]</td><td>по ["имя"]</td></tr><tr><td>Добавить</td><td>append()</td><td>map["к"] = "з"</td></tr><tr><td>Удалить</td><td>—</td><td>delete()</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(6, 1, 'code', this)">// Проверить есть ли ключ
+            <pre contenteditable="false" oninput="updateState(6, 1, 'code', this)" onpaste="handlePaste(event, 6, 1, 'code')">// Проверить есть ли ключ
 номер, есть := телефоны["Дмитрий"]
 if есть {
     fmt.Println("Найден:", номер)
@@ -772,13 +1206,18 @@ if есть {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(6, 1, 'rule', this)" style="">Вторая переменная при доступе к Map (тут 'есть') — это bool, который говорит существует ли ключ.</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(6, 1, 'rule', this)" onpaste="handlePaste(event, 6, 1, 'rule')" style="">Вторая переменная при доступе к Map (тут 'есть') — это bool, который говорит существует ли ключ.</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 6, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 6, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(6, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(6)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s7" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(7, null, 'icon', this)">🏗️</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(7, null, 'num', this)">УР. 8</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(7, null, 'title', this)">Структуры</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(7, null, 'icon', this)">🏗️</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(7, null, 'num', this)">УР. 8</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(7, null, 'title', this)">Структуры</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(7, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -788,7 +1227,7 @@ if есть {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(7, 0, 'title', this)">Создание и использование</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(7, 0, 'title', this)">Создание и использование</div>
           <select class="select-type require-edit" onchange="updateRuleType(7, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -798,9 +1237,9 @@ if есть {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(7, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(7, 0, 'desc', this)">Коробка с несколькими полями разных типов. Как анкета.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(7, 0, 'desc', this)" onpaste="handlePaste(event, 7, 0, 'desc')">Коробка с несколькими полями разных типов. Как анкета.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(7, 0, 'code', this)">// Тип структуры — с Большой буквы!
+            <pre contenteditable="false" oninput="updateState(7, 0, 'code', this)" onpaste="handlePaste(event, 7, 0, 'code')">// Тип структуры — с Большой буквы!
 type User struct {
     Name string
     Age  int
@@ -821,11 +1260,16 @@ fmt.Println(user.Name)
 user.Age = 26</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(7, 0, 'rule', this)" style="">Тип/поля → с Большой (User, Name)<br>Переменные → с маленькой (user)<br>Доступ → через точку user.Name</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(7, 0, 'rule', this)" onpaste="handlePaste(event, 7, 0, 'rule')" style="">Тип/поля → с Большой (User, Name)<br>Переменные → с маленькой (user)<br>Доступ → через точку user.Name</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 7, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 7, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(7, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(7, 1, 'title', this)">Слайс структур</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(7, 1, 'title', this)">Слайс структур</div>
           <select class="select-type require-edit" onchange="updateRuleType(7, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -835,9 +1279,9 @@ user.Age = 26</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(7, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(7, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(7, 1, 'desc', this)" onpaste="handlePaste(event, 7, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(7, 1, 'code', this)">type Product struct {
+            <pre contenteditable="false" oninput="updateState(7, 1, 'code', this)" onpaste="handlePaste(event, 7, 1, 'code')">type Product struct {
     Name  string
     Price int
 }
@@ -853,13 +1297,18 @@ for _, p := range products {
 }</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule purple" contenteditable="true" oninput="updateState(7, 1, 'rule', this)" style="">Очень частый паттерн в реальных приложениях (например, список товаров из базы данных).</div>
+          <div class="rule purple" contenteditable="false" oninput="updateState(7, 1, 'rule', this)" onpaste="handlePaste(event, 7, 1, 'rule')" style="">Очень частый паттерн в реальных приложениях (например, список товаров из базы данных).</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 7, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 7, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(7, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(7)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s8" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(8, null, 'icon', this)">🔌</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(8, null, 'num', this)">УР. 9</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(8, null, 'title', this)">Интерфейсы</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(8, null, 'icon', this)">🔌</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(8, null, 'num', this)">УР. 9</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(8, null, 'title', this)">Интерфейсы</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(8, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -869,7 +1318,7 @@ for _, p := range products {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(8, 0, 'title', this)">Контракт</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(8, 0, 'title', this)">Контракт</div>
           <select class="select-type require-edit" onchange="updateRuleType(8, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -879,9 +1328,9 @@ for _, p := range products {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(8, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(8, 0, 'desc', this)">Позволяет одной функции работать с разными типами.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(8, 0, 'desc', this)" onpaste="handlePaste(event, 8, 0, 'desc')">Позволяет одной функции работать с разными типами.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(8, 0, 'code', this)">// Интерфейс — контракт
+            <pre contenteditable="false" oninput="updateState(8, 0, 'code', this)" onpaste="handlePaste(event, 8, 0, 'code')">// Интерфейс — контракт
 type Animal interface {
     Sound() string
 }
@@ -903,11 +1352,16 @@ makeSound(Dog{Name: "Рекс"})
 makeSound(Cat{Name: "Мурзик"})</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule purple" contenteditable="true" oninput="updateState(8, 0, 'rule', this)" style="">Dog умеет Sound → Dog является Animal ✅<br>Cat умеет Sound → Cat является Animal ✅</div>
+          <div class="rule purple" contenteditable="false" oninput="updateState(8, 0, 'rule', this)" onpaste="handlePaste(event, 8, 0, 'rule')" style="">Dog умеет Sound → Dog является Animal ✅<br>Cat умеет Sound → Cat является Animal ✅</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 8, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 8, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(8, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(8, 1, 'title', this)">Функция с владельцем</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(8, 1, 'title', this)">Функция с владельцем</div>
           <select class="select-type require-edit" onchange="updateRuleType(8, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -917,9 +1371,9 @@ makeSound(Cat{Name: "Мурзик"})</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(8, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(8, 1, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(8, 1, 'desc', this)" onpaste="handlePaste(event, 8, 1, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(8, 1, 'code', this)">// Обычная функция
+            <pre contenteditable="false" oninput="updateState(8, 1, 'code', this)" onpaste="handlePaste(event, 8, 1, 'code')">// Обычная функция
 func Sound() string { ... }
 
 // Метод — привязан к структуре
@@ -932,13 +1386,18 @@ func (d Dog) Sound() string {
 // Dog → d, Cat → c, User → u</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(8, 1, 'rule', this)" style="">(d Dog) → функция принадлежит Dog<br>d.Name → обращаемся к полю через d</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(8, 1, 'rule', this)" onpaste="handlePaste(event, 8, 1, 'rule')" style="">(d Dog) → функция принадлежит Dog<br>d.Name → обращаемся к полю через d</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 8, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 8, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(8, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(8)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s9" data-block="1"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(9, null, 'icon', this)">❌</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(9, null, 'num', this)">УР. 10</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(9, null, 'title', this)">Ошибки</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(9, null, 'icon', this)">❌</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(9, null, 'num', this)">УР. 10</span>
+      <span class="pill pill-c0" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟢 Блок 1</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(9, null, 'title', this)">Ошибки</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(9, this.value)">
           <option value="1" selected="">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -948,7 +1407,7 @@ func (d Dog) Sound() string {
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(9, 0, 'title', this)">Обработка ошибок</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(9, 0, 'title', this)">Обработка ошибок</div>
           <select class="select-type require-edit" onchange="updateRuleType(9, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -958,9 +1417,9 @@ func (d Dog) Sound() string {
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(9, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(9, 0, 'desc', this)">Функции возвращают два значения — результат и ошибку. Всегда проверяй!</div>
+          <div class="desc" contenteditable="false" oninput="updateState(9, 0, 'desc', this)" onpaste="handlePaste(event, 9, 0, 'desc')">Функции возвращают два значения — результат и ошибку. Всегда проверяй!</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(9, 0, 'code', this)">import (
+            <pre contenteditable="false" oninput="updateState(9, 0, 'code', this)" onpaste="handlePaste(event, 9, 0, 'code')">import (
     "errors"
     "fmt"
 )
@@ -982,13 +1441,18 @@ if ошибка != nil {
 fmt.Println(результат) // 5</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(9, 0, 'rule', this)" style="">nil — "ничего", ошибки нет ✅<br>ошибка != nil — ошибка есть ❌<br>errors.New("текст") — создать ошибку</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(9, 0, 'rule', this)" onpaste="handlePaste(event, 9, 0, 'rule')" style="">nil — "ничего", ошибки нет ✅<br>ошибка != nil — ошибка есть ❌<br>errors.New("текст") — создать ошибку</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 9, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 9, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(9, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(9)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s10" data-block="2"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(10, null, 'icon', this)">🌿</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(10, null, 'num', this)">БЛ. 2 · УР. 1</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(10, null, 'title', this)">Git — система контроля версий</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(10, null, 'icon', this)">🌿</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(10, null, 'num', this)">БЛ. 2 · УР. 1</span>
+      <span class="pill pill-c1" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🔵 Блок 2</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(10, null, 'title', this)">Git — система контроля версий</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(10, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2" selected="">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -998,7 +1462,7 @@ fmt.Println(результат) // 5</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(10, 0, 'title', this)">Основные команды</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(10, 0, 'title', this)">Основные команды</div>
           <select class="select-type require-edit" onchange="updateRuleType(10, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1008,9 +1472,9 @@ fmt.Println(результат) // 5</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(10, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(10, 0, 'desc', this)">Git — машина времени для кода. Сохраняет историю всех изменений.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(10, 0, 'desc', this)" onpaste="handlePaste(event, 10, 0, 'desc')">Git — машина времени для кода. Сохраняет историю всех изменений.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(10, 0, 'code', this)"># Настроить имя и email (один раз)
+            <pre contenteditable="false" oninput="updateState(10, 0, 'code', this)" onpaste="handlePaste(event, 10, 0, 'code')"># Настроить имя и email (один раз)
 git config --global user.name "Dmitry"
 git config --global user.email "email@gmail.com"
 
@@ -1032,11 +1496,16 @@ git checkout ID_коммита
 git checkout main</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(10, 0, 'rule', this)" style="">Папка .git — не удаляй! В ней хранится вся история.</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(10, 0, 'rule', this)" onpaste="handlePaste(event, 10, 0, 'rule')" style="">Папка .git — не удаляй! В ней хранится вся история.</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 10, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 10, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(10, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(10, 1, 'title', this)">Как работает коммит</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(10, 1, 'title', this)">Как работает коммит</div>
           <select class="select-type require-edit" onchange="updateRuleType(10, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -1046,18 +1515,23 @@ git checkout main</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(10, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(10, 1, 'desc', this)">Три шага которые повторяешь каждый раз когда делаешь изменения.<br><br><div class="table-wrap"><table><tbody><tr><th>Команда</th><th>Что делает</th></tr><tr><td>git init</td><td>Создать репозиторий</td></tr><tr><td>git status</td><td>Что изменилось</td></tr><tr><td>git add .</td><td>Добавить все файлы</td></tr><tr><td>git commit -m ""</td><td>Сохранить версию</td></tr><tr><td>git log --oneline</td><td>История коммитов</td></tr><tr><td>git checkout ID</td><td>Вернуться к версии</td></tr><tr><td>git checkout main</td><td>Вернуться к последней</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(10, 1, 'desc', this)" onpaste="handlePaste(event, 10, 1, 'desc')">Три шага которые повторяешь каждый раз когда делаешь изменения.<br><br><div class="table-wrap"><table><tbody><tr><th>Команда</th><th>Что делает</th></tr><tr><td>git init</td><td>Создать репозиторий</td></tr><tr><td>git status</td><td>Что изменилось</td></tr><tr><td>git add .</td><td>Добавить все файлы</td></tr><tr><td>git commit -m ""</td><td>Сохранить версию</td></tr><tr><td>git log --oneline</td><td>История коммитов</td></tr><tr><td>git checkout ID</td><td>Вернуться к версии</td></tr><tr><td>git checkout main</td><td>Вернуться к последней</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(10, 1, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(10, 1, 'code', this)" onpaste="handlePaste(event, 10, 1, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(10, 1, 'rule', this)" style="">Пиши понятные описания! "исправил ошибку авторизации" — хорошо. "изменил код" — плохо.</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(10, 1, 'rule', this)" onpaste="handlePaste(event, 10, 1, 'rule')" style="">Пиши понятные описания! "исправил ошибку авторизации" — хорошо. "изменил код" — плохо.</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 10, 1)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 10, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(10, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(10)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s11" data-block="2"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(11, null, 'icon', this)">🐙</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(11, null, 'num', this)">БЛ. 2 · УР. 2</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(11, null, 'title', this)">GitHub — код в интернете</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(11, null, 'icon', this)">🐙</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(11, null, 'num', this)">БЛ. 2 · УР. 2</span>
+      <span class="pill pill-c1" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🔵 Блок 2</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(11, null, 'title', this)">GitHub — код в интернете</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(11, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2" selected="">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -1067,7 +1541,7 @@ git checkout main</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(11, 0, 'title', this)">Подключение и загрузка</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(11, 0, 'title', this)">Подключение и загрузка</div>
           <select class="select-type require-edit" onchange="updateRuleType(11, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1077,9 +1551,9 @@ git checkout main</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(11, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(11, 0, 'desc', this)">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(11, 0, 'desc', this)" onpaste="handlePaste(event, 11, 0, 'desc')">GitHub — сайт где хранится твой код в интернете. Резервная копия + портфолио.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(11, 0, 'code', this)"># 1. Подключить локальный код к GitHub
+            <pre contenteditable="false" oninput="updateState(11, 0, 'code', this)" onpaste="handlePaste(event, 11, 0, 'code')"># 1. Подключить локальный код к GitHub
 git remote add origin https://github.com/username/repo.git
 
 # 2. Загрузить код первый раз
@@ -1091,11 +1565,16 @@ git commit -m "что изменил"
 git push</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(11, 0, 'rule', this)" style="">remote add origin — говорим куда загружать<br>git push — загружаем код на GitHub<br>-u origin main — только при первом push</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(11, 0, 'rule', this)" onpaste="handlePaste(event, 11, 0, 'rule')" style="">remote add origin — говорим куда загружать<br>git push — загружаем код на GitHub<br>-u origin main — только при первом push</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 11, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 11, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(11, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(11, 1, 'title', this)">Git vs GitHub</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(11, 1, 'title', this)">Git vs GitHub</div>
           <select class="select-type require-edit" onchange="updateRuleType(11, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1105,18 +1584,23 @@ git push</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(11, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(11, 1, 'desc', this)"><div class="table-wrap"><table><tbody><tr><th></th><th>Git</th><th>GitHub</th></tr><tr><td>Что это</td><td>программа на компьютере</td><td>сайт в интернете</td></tr><tr><td>Где хранит</td><td>локально на Mac</td><td>в облаке</td></tr><tr><td>Зачем</td><td>история версий</td><td>резервная копия + портфолио</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(11, 1, 'desc', this)" onpaste="handlePaste(event, 11, 1, 'desc')"><div class="table-wrap"><table><tbody><tr><th></th><th>Git</th><th>GitHub</th></tr><tr><td>Что это</td><td>программа на компьютере</td><td>сайт в интернете</td></tr><tr><td>Где хранит</td><td>локально на Mac</td><td>в облаке</td></tr><tr><td>Зачем</td><td>история версий</td><td>резервная копия + портфолио</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(11, 1, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(11, 1, 'code', this)" onpaste="handlePaste(event, 11, 1, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule purple" contenteditable="true" oninput="updateState(11, 1, 'rule', this)" style="">Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼<br><br>Твой репозиторий: github.com/dmitrytretyak19/go-learning</div>
+          <div class="rule purple" contenteditable="false" oninput="updateState(11, 1, 'rule', this)" onpaste="handlePaste(event, 11, 1, 'rule')" style="">Работодатели смотрят GitHub перед собеседованием — это твоё живое резюме! 💼<br><br>Твой репозиторий: github.com/dmitrytretyak19/go-learning</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 11, 1)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 11, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(11, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(11)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s12" data-block="2"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(12, null, 'icon', this)">🐧</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(12, null, 'num', this)">БЛ. 2 · УР. 3</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(12, null, 'title', this)">Linux и терминал</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(12, null, 'icon', this)">🐧</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(12, null, 'num', this)">БЛ. 2 · УР. 3</span>
+      <span class="pill pill-c1" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🔵 Блок 2</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(12, null, 'title', this)">Linux и терминал</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(12, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2" selected="">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -1126,7 +1610,7 @@ git push</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(12, 0, 'title', this)">Основные команды</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(12, 0, 'title', this)">Основные команды</div>
           <select class="select-type require-edit" onchange="updateRuleType(12, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1136,9 +1620,9 @@ git push</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(12, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(12, 0, 'desc', this)">Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(12, 0, 'desc', this)" onpaste="handlePaste(event, 12, 0, 'desc')">Большинство серверов работают на Linux. Твой Go код будет запускаться там — важно знать терминал.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(12, 0, 'code', this)"># Где я нахожусь?
+            <pre contenteditable="false" oninput="updateState(12, 0, 'code', this)" onpaste="handlePaste(event, 12, 0, 'code')"># Где я нахожусь?
 pwd
 
 # Список файлов в папке
@@ -1179,11 +1663,16 @@ clear
 code файл.go</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(12, 0, 'rule', this)" style="display:none;"></div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(12, 0, 'rule', this)" onpaste="handlePaste(event, 12, 0, 'rule')" style="display:none;"></div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 12, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 12, 0)">➕ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(12, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(12, 1, 'title', this)">Шпаргалка команд</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(12, 1, 'title', this)">Шпаргалка команд</div>
           <select class="select-type require-edit" onchange="updateRuleType(12, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1193,18 +1682,23 @@ code файл.go</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(12, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(12, 1, 'desc', this)"><div class="table-wrap"><table><tbody><tr><th>Команда</th><th>Что делает</th></tr><tr><td>pwd</td><td>Показать текущую папку</td></tr><tr><td>ls</td><td>Список файлов</td></tr><tr><td>ls -la</td><td>Список со скрытыми файлами</td></tr><tr><td>cd папка</td><td>Перейти в папку</td></tr><tr><td>cd ..</td><td>Вернуться назад</td></tr><tr><td>cd ~</td><td>Перейти домой</td></tr><tr><td>mkdir имя</td><td>Создать папку</td></tr><tr><td>touch файл</td><td>Создать файл</td></tr><tr><td>cat файл</td><td>Показать содержимое</td></tr><tr><td>rm файл</td><td>Удалить файл</td></tr><tr><td>rm -rf папка</td><td>Удалить папку</td></tr><tr><td>clear</td><td>Очистить терминал</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(12, 1, 'desc', this)" onpaste="handlePaste(event, 12, 1, 'desc')"><div class="table-wrap"><table><tbody><tr><th>Команда</th><th>Что делает</th></tr><tr><td>pwd</td><td>Показать текущую папку</td></tr><tr><td>ls</td><td>Список файлов</td></tr><tr><td>ls -la</td><td>Список со скрытыми файлами</td></tr><tr><td>cd папка</td><td>Перейти в папку</td></tr><tr><td>cd ..</td><td>Вернуться назад</td></tr><tr><td>cd ~</td><td>Перейти домой</td></tr><tr><td>mkdir имя</td><td>Создать папку</td></tr><tr><td>touch файл</td><td>Создать файл</td></tr><tr><td>cat файл</td><td>Показать содержимое</td></tr><tr><td>rm файл</td><td>Удалить файл</td></tr><tr><td>rm -rf папка</td><td>Удалить папку</td></tr><tr><td>clear</td><td>Очистить терминал</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(12, 1, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(12, 1, 'code', this)" onpaste="handlePaste(event, 12, 1, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(12, 1, 'rule', this)" style="">⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(12, 1, 'rule', this)" onpaste="handlePaste(event, 12, 1, 'rule')" style="">⚠️ rm -rf удаляет МГНОВЕННО и НАВСЕГДА — нет корзины, нет отмены! Всегда проверяй путь перед удалением.</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 12, 1)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 12, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(12, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(12)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s13" data-block="2"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(13, null, 'icon', this)">🐳</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(13, null, 'num', this)">БЛ. 2 · УР. 4</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(13, null, 'title', this)">Docker — контейнеризация</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(13, null, 'icon', this)">🐳</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(13, null, 'num', this)">БЛ. 2 · УР. 4</span>
+      <span class="pill pill-c1" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🔵 Блок 2</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(13, null, 'title', this)">Docker — контейнеризация</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(13, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2" selected="">🔵 Блок 2: Инструменты</option><option value="3">🟣 Блок 3: HTTP и API</option>
@@ -1214,7 +1708,7 @@ code файл.go</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(13, 0, 'title', this)">Что такое Docker</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(13, 0, 'title', this)">Что такое Docker</div>
           <select class="select-type require-edit" onchange="updateRuleType(13, 0, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1224,16 +1718,21 @@ code файл.go</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(13, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(13, 0, 'desc', this)">Docker упаковывает твою программу вместе со всем что ей нужно — Go, библиотеки, настройки — в один контейнер. Работает одинаково везде.<br><br><div class="table-wrap"><table><tbody><tr><th>Понятие</th><th>Что это</th><th>Аналогия</th></tr><tr><td>Image (образ)</td><td>шаблон контейнера</td><td>рецепт блюда</td></tr><tr><td>Container</td><td>запущенный образ</td><td>готовое блюдо</td></tr><tr><td>Dockerfile</td><td>инструкция сборки</td><td>список ингредиентов</td></tr><tr><td>Docker Hub</td><td>библиотека образов</td><td>магазин рецептов</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(13, 0, 'desc', this)" onpaste="handlePaste(event, 13, 0, 'desc')">Docker упаковывает твою программу вместе со всем что ей нужно — Go, библиотеки, настройки — в один контейнер. Работает одинаково везде.<br><br><div class="table-wrap"><table><tbody><tr><th>Понятие</th><th>Что это</th><th>Аналогия</th></tr><tr><td>Image (образ)</td><td>шаблон контейнера</td><td>рецепт блюда</td></tr><tr><td>Container</td><td>запущенный образ</td><td>готовое блюдо</td></tr><tr><td>Dockerfile</td><td>инструкция сборки</td><td>список ингредиентов</td></tr><tr><td>Docker Hub</td><td>библиотека образов</td><td>магазин рецептов</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(13, 0, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(13, 0, 'code', this)" onpaste="handlePaste(event, 13, 0, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(13, 0, 'rule', this)" style="">Порядок работы:<br>1. Написал Dockerfile (рецепт)<br>2. docker build (приготовил)<br>3. docker run (запустил)</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(13, 0, 'rule', this)" onpaste="handlePaste(event, 13, 0, 'rule')" style="">Порядок работы:<br>1. Написал Dockerfile (рецепт)<br>2. docker build (приготовил)<br>3. docker run (запустил)</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 13, 0)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 13, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(13, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(13, 1, 'title', this)">Файл инструкций</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(13, 1, 'title', this)">Файл инструкций</div>
           <select class="select-type require-edit" onchange="updateRuleType(13, 1, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1243,9 +1742,9 @@ code файл.go</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(13, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(13, 1, 'desc', this)">Dockerfile — файл без расширения в корне проекта. Содержит инструкции как собрать образ.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(13, 1, 'desc', this)" onpaste="handlePaste(event, 13, 1, 'desc')">Dockerfile — файл без расширения в корне проекта. Содержит инструкции как собрать образ.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(13, 1, 'code', this)"># Базовый образ — на основе чего строим
+            <pre contenteditable="false" oninput="updateState(13, 1, 'code', this)" onpaste="handlePaste(event, 13, 1, 'code')"># Базовый образ — на основе чего строим
 FROM golang:1.22
  
 # Рабочая папка внутри контейнера
@@ -1258,11 +1757,16 @@ COPY . .
 CMD ["go", "run", "main.go"]</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(13, 1, 'rule', this)" style="">FROM — на основе какого образа строим<br>WORKDIR — рабочая папка в контейнере<br>COPY . . — копируем код внутрь<br>CMD — команда запуска</div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(13, 1, 'rule', this)" onpaste="handlePaste(event, 13, 1, 'rule')" style="">FROM — на основе какого образа строим<br>WORKDIR — рабочая папка в контейнере<br>COPY . . — копируем код внутрь<br>CMD — команда запуска</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 13, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 13, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(13, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(13, 2, 'title', this)">Основные команды Docker</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(13, 2, 'title', this)">Основные команды Docker</div>
           <select class="select-type require-edit" onchange="updateRuleType(13, 2, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -1272,9 +1776,9 @@ CMD ["go", "run", "main.go"]</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(13, 2)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(13, 2, 'desc', this)"></div>
+          <div class="desc" contenteditable="false" oninput="updateState(13, 2, 'desc', this)" onpaste="handlePaste(event, 13, 2, 'desc')"></div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(13, 2, 'code', this)"># Проверить версию Docker
+            <pre contenteditable="false" oninput="updateState(13, 2, 'code', this)" onpaste="handlePaste(event, 13, 2, 'code')"># Проверить версию Docker
 docker --version
  
 # Запустить тестовый контейнер
@@ -1307,13 +1811,18 @@ docker rm ID_контейнера
 docker rmi my-go-app</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(13, 2, 'rule', this)" style="">-t название даёт образу понятное имя вместо длинного ID типа sha256:bba8fd9c...</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(13, 2, 'rule', this)" onpaste="handlePaste(event, 13, 2, 'rule')" style="">-t название даёт образу понятное имя вместо длинного ID типа sha256:bba8fd9c...</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 13, 2)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 13, 2)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(13, 2)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(13)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s14" data-block="3"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(14, null, 'icon', this)">🌐</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(14, null, 'num', this)">БЛ. 3 · УР. 1</span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(14, null, 'title', this)">Как работает HTTP</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(14, null, 'icon', this)">🌐</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(14, null, 'num', this)">БЛ. 3 · УР. 1</span>
+      <span class="pill pill-c2" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟣 Блок 3</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(14, null, 'title', this)">Как работает HTTP</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(14, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3" selected="">🟣 Блок 3: HTTP и API</option>
@@ -1323,7 +1832,7 @@ docker rmi my-go-app</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(14, 0, 'title', this)">Запрос и ответ</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(14, 0, 'title', this)">Запрос и ответ</div>
           <select class="select-type require-edit" onchange="updateRuleType(14, 0, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -1333,19 +1842,24 @@ docker rmi my-go-app</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(14, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(14, 0, 'desc', this)">HTTP — протокол общения браузера с сервером. Каждый раз когда открываешь сайт — браузер отправляет запрос, сервер отвечает.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(14, 0, 'desc', this)" onpaste="handlePaste(event, 14, 0, 'desc')">HTTP — протокол общения браузера с сервером. Каждый раз когда открываешь сайт — браузер отправляет запрос, сервер отвечает.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(14, 0, 'code', this)">1. Браузер отправляет запрос (Request) на сервер
+            <pre contenteditable="false" oninput="updateState(14, 0, 'code', this)" onpaste="handlePaste(event, 14, 0, 'code')">1. Браузер отправляет запрос (Request) на сервер
 2. Сервер обрабатывает запрос
 3. Сервер отправляет ответ (Response)
 4. Браузер показывает результат</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(14, 0, 'rule', this)" style="">URL = протокол + домен + путь<br>https://github.com/dmitrytretyak19<br>https — протокол, github.com — домен, /dmitrytretyak19 — путь</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(14, 0, 'rule', this)" onpaste="handlePaste(event, 14, 0, 'rule')" style="">URL = протокол + домен + путь<br>https://github.com/dmitrytretyak19<br>https — протокол, github.com — домен, /dmitrytretyak19 — путь</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 14, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 14, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(14, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(14, 1, 'title', this)">GET · POST · PUT · DELETE</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(14, 1, 'title', this)">GET · POST · PUT · DELETE</div>
           <select class="select-type require-edit" onchange="updateRuleType(14, 1, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip" selected="">Лайфхак</option>
@@ -1355,16 +1869,21 @@ docker rmi my-go-app</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(14, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(14, 1, 'desc', this)">Метод говорит серверу что именно ты хочешь сделать с данными.<br><br><div class="table-wrap"><table><tbody><tr><th>Метод</th><th>Что делает</th><th>Пример</th></tr><tr><td>GET</td><td>Получить данные</td><td>Загрузить список пользователей</td></tr><tr><td>POST</td><td>Создать новое</td><td>Зарегистрировать пользователя</td></tr><tr><td>PUT</td><td>Обновить существующее</td><td>Изменить имя пользователя</td></tr><tr><td>DELETE</td><td>Удалить</td><td>Удалить пользователя</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(14, 1, 'desc', this)" onpaste="handlePaste(event, 14, 1, 'desc')">Метод говорит серверу что именно ты хочешь сделать с данными.<br><br><div class="table-wrap"><table><tbody><tr><th>Метод</th><th>Что делает</th><th>Пример</th></tr><tr><td>GET</td><td>Получить данные</td><td>Загрузить список пользователей</td></tr><tr><td>POST</td><td>Создать новое</td><td>Зарегистрировать пользователя</td></tr><tr><td>PUT</td><td>Обновить существующее</td><td>Изменить имя пользователя</td></tr><tr><td>DELETE</td><td>Удалить</td><td>Удалить пользователя</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(14, 1, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(14, 1, 'code', this)" onpaste="handlePaste(event, 14, 1, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule tip" contenteditable="true" oninput="updateState(14, 1, 'rule', this)" style="">Аналогия с рестораном:<br>GET — "покажи меню"<br>POST — "хочу заказать блюдо"<br>PUT — "хочу изменить заказ"<br>DELETE — "отмени заказ"</div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(14, 1, 'rule', this)" onpaste="handlePaste(event, 14, 1, 'rule')" style="">Аналогия с рестораном:<br>GET — "покажи меню"<br>POST — "хочу заказать блюдо"<br>PUT — "хочу изменить заказ"<br>DELETE — "отмени заказ"</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 14, 1)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 14, 1)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(14, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(14, 2, 'title', this)">Коды ответов сервера</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(14, 2, 'title', this)">Коды ответов сервера</div>
           <select class="select-type require-edit" onchange="updateRuleType(14, 2, this.value)">
             <option value="normal">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1374,18 +1893,23 @@ docker rmi my-go-app</pre>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(14, 2)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(14, 2, 'desc', this)">Каждый ответ сервера содержит код — число которое говорит что произошло.<br><br><div class="table-wrap"><table><tbody><tr><th>Код</th><th>Значение</th></tr><tr><td>200</td><td>Всё хорошо ✅</td></tr><tr><td>201</td><td>Создано ✅</td></tr><tr><td>400</td><td>Плохой запрос — неверные данные ❌</td></tr><tr><td>401</td><td>Не авторизован — нужен логин ❌</td></tr><tr><td>404</td><td>Не найдено — страница не существует ❌</td></tr><tr><td>500</td><td>Ошибка сервера — что-то сломалось ❌</td></tr></tbody></table></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(14, 2, 'desc', this)" onpaste="handlePaste(event, 14, 2, 'desc')">Каждый ответ сервера содержит код — число которое говорит что произошло.<br><br><div class="table-wrap"><table><tbody><tr><th>Код</th><th>Значение</th></tr><tr><td>200</td><td>Всё хорошо ✅</td></tr><tr><td>201</td><td>Создано ✅</td></tr><tr><td>400</td><td>Плохой запрос — неверные данные ❌</td></tr><tr><td>401</td><td>Не авторизован — нужен логин ❌</td></tr><tr><td>404</td><td>Не найдено — страница не существует ❌</td></tr><tr><td>500</td><td>Ошибка сервера — что-то сломалось ❌</td></tr></tbody></table></div></div>
           <div class="code-wrap" style="display:none;">
-            <pre contenteditable="true" oninput="updateState(14, 2, 'code', this)"></pre>
+            <pre contenteditable="false" oninput="updateState(14, 2, 'code', this)" onpaste="handlePaste(event, 14, 2, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(14, 2, 'rule', this)" style="">2xx — успех · 4xx — ошибка клиента · 5xx — ошибка сервера</div>
+          <div class="rule warn" contenteditable="false" oninput="updateState(14, 2, 'rule', this)" onpaste="handlePaste(event, 14, 2, 'rule')" style="">2xx — успех · 4xx — ошибка клиента · 5xx — ошибка сервера</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 14, 2)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 14, 2)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(14, 2)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(14)">➕ Добавить карточку в этот блок</button></div></div></div><div class="section collapsed" id="s1780753812117" data-block="3"><div class="section-header">
-      <span class="section-icon" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(15, null, 'icon', this)">📝</span>
-      <span class="section-num" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(15, null, 'num', this)">БЛ.3 УР.2<br></span>
-      
-      <span class="section-title" contenteditable="true" onclick="event.stopPropagation()" oninput="updateState(15, null, 'title', this)">Первый HTTP сервер&nbsp;</span>
+      <span class="section-icon" contenteditable="false" onclick="" oninput="updateState(15, null, 'icon', this)">🖥️</span>
+      <span class="section-num" contenteditable="false" onclick="" oninput="updateState(15, null, 'num', this)">БЛ.3 · УР.2</span>
+      <span class="pill pill-c2" style="font-size: 11px; padding: 3px 8px; font-weight: 600; pointer-events: none; white-space: nowrap;">🟣 Блок 3</span>
+      <span class="section-title" contenteditable="false" onclick="" oninput="updateState(15, null, 'title', this)">Первый HTTP сервер</span>
       <div class="require-edit" style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
         <select class="select-type" onchange="updateSectionBlock(15, this.value)">
           <option value="1">🟢 Блок 1: Основы Go</option><option value="2">🔵 Блок 2: Инструменты</option><option value="3" selected="">🟣 Блок 3: HTTP и API</option>
@@ -1395,38 +1919,51 @@ docker rmi my-go-app</pre>
       <span class="chevron">▾</span>
     </div><div class="section-body"><div class="grid"><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(15, 0, 'title', this)">Структура сервера</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(15, 0, 'title', this)">Структура сервера</div>
           <select class="select-type require-edit" onchange="updateRuleType(15, 0, this.value)">
-            <option value="normal">Инфо</option>
+            <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
-            <option value="warn" selected="">Внимание</option>
+            <option value="warn">Внимание</option>
             <option value="purple">Заметка</option>
           </select>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(15, 0)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(15, 0, 'desc', this)"><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><span class="token token" style="color: rgb(110, 118, 135);">// handler — функция обработки запроса</span></span><div><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><span class="token token" style="color: rgb(110, 118, 135);">// w — пишем ответ клиенту</span>&nbsp;</span></div><div><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><span class="token token" style="color: rgb(110, 118, 135);">// r — запрос от клиента</span></span><br></div><div><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"></span><span class="token token" style="color: rgb(110, 118, 135);">// маршрут: при заходе на "/" вызвать handler</span><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><span class="token token" style="color: rgb(110, 118, 135);"><br></span></span></div><div><span class="token token" style="color: rgb(110, 118, 135);"><span style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"></span><span class="token token">// запустить сервер на порту 8080</span><br></span></div></div>
+          <div class="desc" contenteditable="false" oninput="updateState(15, 0, 'desc', this)" onpaste="handlePaste(event, 15, 0, 'desc')">Минимальный HTTP сервер на Go. Запускается командой go run main.go и ждёт запросов на порту 8080.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(15, 0, 'code', this)">package main
+            <pre contenteditable="false" oninput="updateState(15, 0, 'code', this)" onpaste="handlePaste(event, 15, 0, 'code')">package main
 
 import (
     "fmt"
     "net/http"
 )
-<br><div><div>func handler(w http.ResponseWriter, r *http.Request) {
+
+// handler — функция обработки запроса
+// w — пишем ответ клиенту
+// r — запрос от клиента
+func handler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintln(w, "Привет от сервера!")
 }
 
-func main() {<br></div><div>    http.HandleFunc("/", handler)
+func main() {
+    // маршрут: при заходе на "/" вызвать handler
+    http.HandleFunc("/", handler)
     fmt.Println("Сервер запущен на порту 8080...")
-  &nbsp;</div><div><span style="font-family: var(--font-mono);">  http.ListenAndServe(":8080", nil)</span><br></div><div>}<br></div></div></pre>
+    // запустить сервер на порту 8080
+    http.ListenAndServe(":8080", nil)
+}</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule warn" contenteditable="true" oninput="updateState(15, 0, 'rule', this)" style=""><div><div><br></div></div></div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(15, 0, 'rule', this)" onpaste="handlePaste(event, 15, 0, 'rule')" style="">w — перо которым пишем ответ клиенту<br>r — запрос от клиента<br>Ctrl+C — остановить сервер</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 15, 0)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 15, 0)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(15, 0)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(15, 1, 'title', this)">Несколько маршрутов</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(15, 1, 'title', this)">Несколько маршрутов</div>
           <select class="select-type require-edit" onchange="updateRuleType(15, 1, this.value)">
             <option value="normal" selected="">Инфо</option>
             <option value="tip">Лайфхак</option>
@@ -1436,39 +1973,48 @@ func main() {<br></div><div>    http.HandleFunc("/", handler)
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(15, 1)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(15, 1, 'desc', this)">Описание структуры или синтаксиса.</div>
+          <div class="desc" contenteditable="false" oninput="updateState(15, 1, 'desc', this)" onpaste="handlePaste(event, 15, 1, 'desc')">Каждый путь — своя функция обработчик.</div>
           <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(15, 1, 'code', this)">http.HandleFunc("/", handler)
+            <pre contenteditable="false" oninput="updateState(15, 1, 'code', this)" onpaste="handlePaste(event, 15, 1, 'code')">http.HandleFunc("/", handler)
 http.HandleFunc("/about", aboutHandler)
-http.HandleFunc("/users", usersHandler)
-// каждый путь — своя функция</pre>
+http.HandleFunc("/users", usersHandler)</pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(15, 1, 'rule', this)" style=""><br></div>
+          <div class="rule normal" contenteditable="false" oninput="updateState(15, 1, 'rule', this)" onpaste="handlePaste(event, 15, 1, 'rule')" style="display:none;"></div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 15, 1)">➖ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 15, 1)">➕ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(15, 1)">➕ Таблица</button>
+          </div>
         </div>
       </div><div class="card">
         <div class="card-header">
-          <div class="card-title" contenteditable="true" oninput="updateState(15, 2, 'title', this)">Порты&nbsp;</div>
+          <div class="card-title" contenteditable="false" oninput="updateState(15, 2, 'title', this)">Порты</div>
           <select class="select-type require-edit" onchange="updateRuleType(15, 2, this.value)">
-            <option value="normal" selected="">Инфо</option>
-            <option value="tip">Лайфхак</option>
+            <option value="normal">Инфо</option>
+            <option value="tip" selected="">Лайфхак</option>
             <option value="warn">Внимание</option>
             <option value="purple">Заметка</option>
           </select>
           <button class="del-btn require-edit" style="padding: 2px 6px;" onclick="deleteCard(15, 2)">🗑️</button>
         </div>
         <div class="card-body">
-          <div class="desc" contenteditable="true" oninput="updateState(15, 2, 'desc', this)"><p class="font-claude-response-body break-words whitespace-normal leading-[1.7]" style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><strong>Карточка 3 — Порты (таблица)</strong></p><div class="overflow-x-auto w-full px-2 mb-6" style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><table class="min-w-full border-collapse text-sm leading-[1.7] whitespace-normal"><thead class="text-left"><tr><th scope="col" class="text-text-100 border-b-0.5 border-[hsl(var(--border-300)/0.6)] py-2 pr-4 align-top font-bold">Порт</th><th scope="col" class="text-text-100 border-b-0.5 border-[hsl(var(--border-300)/0.6)] py-2 pr-4 align-top font-bold">Кто использует</th></tr></thead><tbody><tr><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">80</td><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">HTTP сайты</td></tr><tr><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">443</td><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">HTTPS сайты</td></tr><tr><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">8080</td><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">Разработка</td></tr><tr><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">5432</td><td class="border-b-0.5 border-[hsl(var(--border-300)/0.3)] py-2 pr-4 align-top">PostgreSQL</td></tr></tbody></table></div><p class="font-claude-response-body break-words whitespace-normal leading-[1.7]" style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"><strong></strong></p></div>
-          <div class="code-wrap" style="">
-            <pre contenteditable="true" oninput="updateState(15, 2, 'code', this)"><br></pre>
+          <div class="desc" contenteditable="false" oninput="updateState(15, 2, 'desc', this)" onpaste="handlePaste(event, 15, 2, 'desc')"><div class="table-wrap"><table><tbody><tr><th>Порт</th><th>Кто использует</th></tr><tr><td>80</td><td>HTTP сайты</td></tr><tr><td>443</td><td>HTTPS сайты</td></tr><tr><td>8080</td><td>Разработка</td></tr><tr><td>5432</td><td>PostgreSQL</td></tr></tbody></table></div></div>
+          <div class="code-wrap" style="display:none;">
+            <pre contenteditable="false" oninput="updateState(15, 2, 'code', this)" onpaste="handlePaste(event, 15, 2, 'code')"></pre>
             <button class="copy-btn" onclick="copyCodeText(this)">Copy</button>
           </div>
-          <div class="rule normal" contenteditable="true" oninput="updateState(15, 2, 'rule', this)" style=""><strong style="caret-color: rgb(0, 0, 0); color: rgb(0, 0, 0);"></strong><div><div>· w — перо которым пишем ответ клиенту</div><div>· r — запрос от клиента&nbsp;</div><div>· ctrl+c — остановить сервер</div></div></div>
+          <div class="rule tip" contenteditable="false" oninput="updateState(15, 2, 'rule', this)" onpaste="handlePaste(event, 15, 2, 'rule')" style="">localhost — адрес твоего компьютера<br>:8080 — номер порта (как номер квартиры в доме)</div>
+          <div class="card-tools require-edit" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'code', 15, 2)">➕ Код</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="toggleCardSection(this, 'rule', 15, 2)">➖ Правило</button>
+            <button class="ctrl-btn" style="font-size:11px;padding:3px 8px;" onclick="insertTable(15, 2)">➕ Таблица</button>
+          </div>
         </div>
       </div></div><div class="add-card-container require-edit"><button class="btn-add-card" onclick="createNewCard(15)">➕ Добавить карточку в этот блок</button></div></div></div></div>
 </div>
 
-<div class="toast" id="toast_alert">Новый файл конспекта сохранён!</div>
+<div class="toast" id="toast_alert">Режим чтения включен</div>
 
 <script>
 // ═══ GLOBAL IMMUTABLE STATE (UPDATED BY SELF-EXPORT REGEX) ═══
@@ -1882,11 +2428,38 @@ const DATA = [
         "ruleType": "tip"
       }
     ]
+  },
+  {
+    "id": "s_get_post",
+    "icon": "📬",
+    "num": "БЛ.3 · УР.3",
+    "title": "Методы GET и POST",
+    "block": "3",
+    "collapsed": true,
+    "cards": [
+      {
+        "title": "Определение метода",
+        "desc": "r.Method содержит метод запроса. Используем if/else чтобы обработать каждый по-своему.",
+        "code": "func usersHandler(w http.ResponseWriter, r *http.Request) {\n    if r.Method == \"GET\" {\n        fmt.Fprintln(w, \"Список пользователей\")\n    } else if r.Method == \"POST\" {\n        fmt.Fprintln(w, \"Пользователь создан!\")\n    } else {\n        fmt.Fprintln(w, \"Метод не поддерживается\")\n    }\n}\n\nfunc main() {\n    http.HandleFunc(\"/users\", usersHandler)\n    http.ListenAndServe(\":8080\", nil)\n}",
+        "rule": "GET — браузер отправляет автоматически при заходе по ссылке<br>POST — нужна форма или кнопка, отправляет данные на сервер",
+        "ruleType": "normal"
+      },
+      {
+        "title": "Чтение данных из POST",
+        "desc": "r.ParseForm() разбирает данные запроса. r.FormValue() читает конкретное поле по имени.",
+        "code": "r.ParseForm()\nимя := r.FormValue(\"name\")\nfmt.Fprintln(w, \"Создан пользователь:\", имя)",
+        "rule": "curl — инструмент для отправки запросов из терминала<br>curl -X POST -d \"name=Дмитрий\" http://localhost:8080/users",
+        "ruleType": "tip"
+      }
+    ]
   }
 ]; // END_DATA
 
 let currentBlockFilter = 'all';
 let isEditMode = false;
+
+// Сохраняем оригинальный HTML при загрузке — до любого рендера
+const _originalHtmlTemplate = document.documentElement.outerHTML;
 
 // ═══ EDIT MODE LOGIC ═══
 function toggleEditMode() {
@@ -2194,24 +2767,28 @@ function showToast(text) {
 
 // ═══ FILE EXPORTER ═══
 function doExport() {
-  let fullHtml = document.documentElement.outerHTML;
-  
-  const updatedDataJson = JSON.stringify(DATA, null, 2);
-  const updatedBlocksJson = JSON.stringify(BLOCKS, null, 2);
-  
-  const dataRegex = /const\s+DATA\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_DATA/;
-  const blocksRegex = /const\s+BLOCKS\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_BLOCKS/;
-  
-  if (dataRegex.test(fullHtml) && blocksRegex.test(fullHtml)) {
+  try {
+    // Используем оригинальный шаблон — там маркеры точно есть
+    let fullHtml = _originalHtmlTemplate;
+
+    const updatedDataJson = JSON.stringify(DATA, null, 2);
+    const updatedBlocksJson = JSON.stringify(BLOCKS, null, 2);
+
+    const dataRegex = /const\s+DATA\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_DATA/;
+    const blocksRegex = /const\s+BLOCKS\s*=\s*\[[\s\S]*?\];\s*\/\/\s*END_BLOCKS/;
+
+    if (!dataRegex.test(fullHtml) || !blocksRegex.test(fullHtml)) {
+      alert('Ошибка: маркеры END_DATA или END_BLOCKS не найдены в шаблоне.');
+      return;
+    }
+
     fullHtml = fullHtml.replace(dataRegex, `const DATA = ${updatedDataJson}; // END_DATA`);
     fullHtml = fullHtml.replace(blocksRegex, `const BLOCKS = ${updatedBlocksJson}; // END_BLOCKS`);
-  } else {
-    alert("Критическая ошибка: Архитектурный маркер базы данных поврежден.");
-    return;
-  }
-  
-  try {
-    const blob = new Blob(["<!DOCTYPE html>\n" + fullHtml], { type: 'text/html;charset=utf-8' });
+
+    // Убираем edit-mode из body если он там есть в шаблоне
+    fullHtml = fullHtml.replace('<body class="edit-mode">', '<body>');
+
+    const blob = new Blob(['<!DOCTYPE html>\n' + fullHtml], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -2220,9 +2797,9 @@ function doExport() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('Новый файл конспекта сохранён!');
+    showToast('✅ Конспект сохранён!');
   } catch (err) {
-    alert('Ошибка работы дисковой подсистемы: ' + err.message);
+    alert('Ошибка сохранения: ' + err.message);
   }
 }
 
@@ -2268,6 +2845,66 @@ function insertTable(sIdx, cIdx) {
   renderSections();
   showToast('Таблица добавлена в описание карточки');
 }
+
+// ═══ СКРЫТИЕ ШАПКИ — Safari-style ═══
+(function() {
+  const navContainer = document.getElementById('nav-container');
+  const navMini = document.getElementById('nav-mini');
+  let lastScrollY = window.scrollY;
+  let navVisible = true;
+  // Накопленное смещение — для фильтрации микрожестов
+  let scrollAccum = 0;
+  const HIDE_THRESHOLD = 8;   // px вниз до скрытия
+  const SHOW_THRESHOLD = 4;   // px вверх до показа
+
+  function showNav() {
+    if (navVisible) return;
+    navContainer.classList.remove('nav-hidden');
+    navMini.classList.remove('visible');
+    navVisible = true;
+  }
+
+  function hideNav() {
+    if (!navVisible) return;
+    navContainer.classList.add('nav-hidden');
+    navMini.classList.add('visible');
+    navVisible = false;
+  }
+
+  // Глобальная функция — вызывается при клике на мини-иконку
+  window.showNav = showNav;
+
+  let rafId = null;
+  window.addEventListener('scroll', () => {
+    if (rafId) return; // уже в очереди — не копим
+    rafId = window.requestAnimationFrame(() => {
+      rafId = null;
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollY;
+      lastScrollY = currentScrollY;
+
+      // Самый верх — всегда показываем
+      if (currentScrollY < 50) {
+        scrollAccum = 0;
+        showNav();
+        return;
+      }
+
+      scrollAccum += delta;
+
+      if (scrollAccum > HIDE_THRESHOLD) {
+        // Уверенный скролл вниз — прячем мгновенно
+        scrollAccum = 0;
+        hideNav();
+      } else if (scrollAccum < -SHOW_THRESHOLD) {
+        // Скролл вверх — показываем мгновенно
+        scrollAccum = 0;
+        showNav();
+      }
+      // Иначе — мелкий дрыг, игнорируем
+    });
+  }, { passive: true });
+})();
 
 // Run Initial Render
 renderApp();
